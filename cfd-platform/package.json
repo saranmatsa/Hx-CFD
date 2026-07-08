@@ -1,0 +1,21 @@
+{
+  "name": "cfd-platform",
+  "version": "1.0.0",
+  "description": "Browser-based CFD simulation platform",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "docker-compose up",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "docker-compose down -v && rm -rf */dist */node_modules"
+  },
+  "devDependencies": {
+    "docker-compose": "^1.29.2"
+  }
+}

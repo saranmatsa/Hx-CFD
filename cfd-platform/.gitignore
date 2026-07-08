@@ -1,0 +1,65 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+htmlcov/
+.coverage
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# CFD working directories (can be large)
+run/
+processor*/
+constant/
+system/
+
+# Uploaded files
+uploads/
+storage/
+
+# Database
+*.db
+*.sqlite
+
+# Celery
+celerybeat-schedule
+
+# Docker
+.dockerignore
+
+# Credentials
+*.pem
+*.key
+credentials.json

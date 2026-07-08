@@ -1,0 +1,184 @@
+# CFD Platform Local Development Docker Compose
+# Phase 4: Local Desktop Deployment Architecture with Service Manager
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d backend       # Start specific service
+#   docker-compose logs -f backend     # Follow backend logs
+#   docker-compose down                # Stop all services
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cfd-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cfd_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cfd_password}
+      POSTGRES_DB: ${POSTGRES_DB:-cfd_platform}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cfd_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cfd-network
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: cfd-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cfd-network
+
+  # Backend API with Service Manager
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/backend/Dockerfile
+    container_name: cfd-backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - REDIS_URL=redis://redis:6379/0
+      - API_V1_PREFIX=/api/v1
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - ENVIRONMENT=development
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - OPENFOAM_DIR=${OPENFOAM_DIR:-/opt/OpenFOAM}
+      - GMSH_BIN=${GMSH_BIN:-/usr/bin/gmsh}
+      - FREECAD_BIN=${FREECAD_BIN:-/usr/bin/freecad}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - cfd_data:/data
+      - /tmp/cfd:/tmp/cfd
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cfd-network
+
+  # Celery Worker for Background Tasks
+  worker:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/worker/Dockerfile
+    container_name: cfd-worker
+    command: celery -A workers.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - cfd_data:/data
+      - /tmp/cfd:/tmp/cfd
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - REDIS_URL=redis://redis:6379/0
+      - OPENFOAM_DIR=${OPENFOAM_DIR:-/opt/OpenFOAM}
+      - GMSH_BIN=${GMSH_BIN:-/usr/bin/gmsh}
+      - FREECAD_BIN=${FREECAD_BIN:-/usr/bin/freecad}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - cfd-network
+
+  # Celery Beat for Scheduled Tasks
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/worker/Dockerfile
+    container_name: cfd-celery-beat
+    command: celery -A workers.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - cfd-network
+
+  # Flower for Celery Monitoring
+  flower:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/worker/Dockerfile
+    container_name: cfd-flower
+    command: celery -A workers.celery_app flower --port=5555
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - cfd-network
+
+  # Frontend Development Server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: cfd-frontend
+    environment:
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8000}
+      - VITE_WS_URL=ws://localhost:${BACKEND_PORT:-8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - cfd-network
+
+  # AI Services (optional)
+  ai-services:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/ai/Dockerfile
+    container_name: cfd-ai-services
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    ports:
+      - "${AI_SERVICES_PORT:-8001}:8001"
+    depends_on:
+      - redis
+    networks:
+      - cfd-network
+
+volumes:
+  cfd_data:
+  postgres_data:
+  redis_data:
+
+networks:
+  cfd-network:
+    driver: bridge

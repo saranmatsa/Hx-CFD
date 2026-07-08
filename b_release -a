@@ -1,0 +1,21 @@
+[32mcalculix-cgx[0m/resolute 2.21+dfsg-2 amd64
+  Calculix cgx is a 3-dimensional pre- and post-processor for fem
+
+[32mcalculix-cgx-examples[0m/resolute 2.21+dfsg-2 all
+  Example files for Calculix GraphiX
+
+[32mopenfoam-deps[0m/unknown 20240705 amd64
+  Installs dependent software to compile OpenFOAM including the
+
+[32mopenfoam-nopv-deps[0m/unknown 20240705 amd64
+  Installs dependent software to compile OpenFOAM but not including
+
+[32mopenfoam11[0m/unknown 20240612 amd64
+  OpenFOAM is the leading free, open source software for
+
+[32mopenfoam12[0m/unknown 20250206 amd64
+  OpenFOAM is the leading free, open source software for
+
+[32mopenfoam13[0m/unknown 20260624 amd64
+  OpenFOAM is the leading free, open source software for
+
