@@ -40,30 +40,39 @@ class SimulationService:
         solver: str,
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """
+        Dispatch simulation to Celery task.
+        
+        This method dispatches the actual CFD simulation to a background
+        Celery task instead of returning stub data.
+        """
         try:
-            logger.info(f"Running {solver} simulation")
+            from backend.tasks.simulation_tasks import run_simulation
             
-            progress = 0.0
-            residuals = []
+            logger.info(f"Dispatching {solver} simulation")
             
-            for i in range(100):
-                progress = (i + 1) / 100.0
-                residual = {
-                    "iteration": i + 1,
-                    "continuity": 0.001 * (1 - progress),
-                    "p": 0.01 * (1 - progress),
-                    "U": 0.001 * (1 - progress)
-                }
-                residuals.append(residual)
+            # Dispatch to Celery task and return task ID for tracking
+            task = run_simulation.delay(
+                simulation_id=config.get("simulation_id"),
+                mesh_id=config.get("mesh_id"),
+                job_id=config.get("job_id"),
+                simulation_config={
+                    "solver": solver,
+                    "case_dir": case_path,
+                    "end_time": config.get("end_time", 1000),
+                    "write_interval": config.get("write_interval", 100),
+                    "parameters": config.get("parameters", {}),
+                },
+                project_id=config.get("project_id"),
+            )
             
             return {
-                "status": "completed",
-                "progress": 1.0,
-                "residuals": residuals,
-                "results_path": os.path.join(case_path, "postProcessing")
+                "task_id": task.id,
+                "status": "dispatched",
+                "message": "Simulation dispatched to background task",
             }
         except Exception as e:
-            logger.error(f"Simulation failed: {str(e)}")
+            logger.error(f"Simulation dispatch failed: {str(e)}")
             raise SimulationError(str(e))
     
     def get_solver_options(self) -> List[str]:

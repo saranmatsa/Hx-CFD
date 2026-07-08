@@ -20,33 +20,43 @@ class MeshService:
         output_file: str,
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """
+        Dispatch mesh generation to Celery task.
+        
+        This method dispatches the actual mesh generation to a background
+        Celery task instead of returning stub data.
+        """
         try:
+            from backend.tasks.mesh_tasks import generate_mesh
+            
             element_size = config.get("element_size", 0.1)
             growth_rate = config.get("growth_rate", 1.2)
             num_boundary_layers = config.get("num_boundary_layers", 3)
             
-            logger.info(f"Generating mesh from {geometry_file}")
+            logger.info(f"Dispatching mesh generation from {geometry_file}")
             logger.info(f"Element size: {element_size}, Growth rate: {growth_rate}")
             
-            num_cells = 10000
-            num_points = 2000
-            
-            quality_metrics = {
-                "min_quality": 0.1,
-                "max_quality": 1.0,
-                "avg_quality": 0.7,
-                "min_aspect_ratio": 1.0,
-                "max_aspect_ratio": 5.0
-            }
+            # Dispatch to Celery task and return task ID for tracking
+            task = generate_mesh.delay(
+                mesh_id=config.get("mesh_id"),
+                geometry_id=config.get("geometry_id"),
+                job_id=config.get("job_id"),
+                mesh_config={
+                    "element_size": element_size,
+                    "growth_rate": growth_rate,
+                    "num_boundary_layers": num_boundary_layers,
+                    "output_path": output_file,
+                },
+                project_id=config.get("project_id"),
+            )
             
             return {
-                "file_path": output_file,
-                "num_cells": num_cells,
-                "num_points": num_points,
-                "quality_metrics": quality_metrics
+                "task_id": task.id,
+                "status": "dispatched",
+                "message": "Mesh generation dispatched to background task",
             }
         except Exception as e:
-            logger.error(f"Mesh generation failed: {str(e)}")
+            logger.error(f"Mesh generation dispatch failed: {str(e)}")
             raise MeshGenerationError(str(e))
     
     def validate_mesh(self, mesh_file: str) -> bool:

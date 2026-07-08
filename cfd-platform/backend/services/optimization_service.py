@@ -36,28 +36,38 @@ class OptimizationService:
         optimization_id: str,
         config: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """
+        Dispatch optimization to Celery task.
+        
+        This method dispatches the actual optimization to a background
+        Celery task instead of returning stub data.
+        """
         try:
-            logger.info(f"Running optimization {optimization_id}")
+            from backend.tasks.optimization_tasks import run_optimization
             
-            results = []
-            for i in range(config.get("max_iterations", 100)):
-                result = {
-                    "iteration": i + 1,
-                    "parameters": {p["name"]: p["initial_value"] or p["min_value"] 
-                                   for p in config.get("parameters", [])},
-                    "objectives": {"Cd": 0.5 - i * 0.001}
-                }
-                results.append(result)
+            logger.info(f"Dispatching optimization {optimization_id}")
+            
+            # Dispatch to Celery task and return task ID for tracking
+            task = run_optimization.delay(
+                optimization_id=optimization_id,
+                job_id=config.get("job_id"),
+                optimization_config={
+                    "algorithm": config.get("algorithm", "ngopt"),
+                    "max_iterations": config.get("max_iterations", 100),
+                    "parameters": config.get("parameters", []),
+                    "objectives": config.get("objectives", {}),
+                    "constraints": config.get("constraints", []),
+                },
+                project_id=config.get("project_id"),
+            )
             
             return {
-                "status": "completed",
-                "progress": 1.0,
-                "results": results,
-                "best_parameters": results[-1]["parameters"],
-                "best_objectives": results[-1]["objectives"]
+                "task_id": task.id,
+                "status": "dispatched",
+                "message": "Optimization dispatched to background task",
             }
         except Exception as e:
-            logger.error(f"Optimization failed: {str(e)}")
+            logger.error(f"Optimization dispatch failed: {str(e)}")
             return {"status": "failed", "error": str(e)}
     
     def get_algorithm_options(self) -> List[str]:

@@ -3,32 +3,51 @@ import logging
 from typing import Optional, Dict, Any, List
 import numpy as np
 
+from core.config import settings
+from core.errors import VisualizationError
+
 logger = logging.getLogger(__name__)
 
 
 class VisualizationService:
     def __init__(self):
-        self.data_dir = "/data"
+        self.data_dir = settings.DATA_DIR
+        self._vtk_client = None
+    
+    def _get_vtk_client(self):
+        """Lazy-load VTK client to avoid import errors."""
+        if self._vtk_client is None:
+            from backend.services.integration import VTKClient
+            self._vtk_client = VTKClient()
+        return self._vtk_client
     
     def get_mesh_geometry(self, case_path: Optional[str]) -> Dict[str, Any]:
-        if not case_path or not os.path.exists(case_path):
-            num_points = 1000
-            points = np.random.rand(num_points, 3).tolist()
-            connectivity = []
-            for i in range(0, num_points - 2, 3):
-                connectivity.extend([i, i + 1, i + 2])
-        else:
-            points = [[0, 0, 0], [1, 0, 0], [0.5, 1, 0], [0.5, 0.5, 1]]
-            connectivity = [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3]
+        """
+        Get mesh geometry from VTK data.
         
-        return {
-            "points": points,
-            "connectivity": connectivity,
-            "bounding_box": {
-                "min": [0, 0, 0],
-                "max": [1, 1, 1]
+        Args:
+            case_path: Path to simulation case directory
+            
+        Returns:
+            Mesh geometry data
+        """
+        try:
+            if not case_path or not os.path.exists(case_path):
+                raise VisualizationError(f"Case path not found: {case_path}")
+            
+            vtk_client = self._get_vtk_client()
+            geometry = vtk_client.read_mesh(case_path)
+            
+            return {
+                "points": geometry["points"],
+                "connectivity": geometry["connectivity"],
+                "bounding_box": geometry["bounding_box"],
+                "num_cells": geometry["num_cells"],
+                "num_points": geometry["num_points"],
             }
-        }
+        except Exception as e:
+            logger.error(f"Failed to get mesh geometry: {str(e)}")
+            raise VisualizationError(str(e))
     
     def get_scalar_field(
         self,
@@ -36,17 +55,39 @@ class VisualizationService:
         field_name: str,
         time_step: Optional[float] = None
     ) -> Dict[str, Any]:
-        num_points = 1000
-        values = np.random.rand(num_points).tolist()
+        """
+        Get scalar field data from VTK results.
         
-        return {
-            "field_name": field_name,
-            "points": np.random.rand(num_points, 3).tolist(),
-            "values": values,
-            "min_value": min(values),
-            "max_value": max(values),
-            "time_step": time_step or 0.0
-        }
+        Args:
+            results_path: Path to simulation results
+            field_name: Name of the scalar field
+            time_step: Optional time step to extract
+            
+        Returns:
+            Scalar field data
+        """
+        try:
+            if not results_path or not os.path.exists(results_path):
+                raise VisualizationError(f"Results path not found: {results_path}")
+            
+            vtk_client = self._get_vtk_client()
+            field_data = vtk_client.read_scalar_field(
+                results_path,
+                field_name,
+                time_step=time_step,
+            )
+            
+            return {
+                "field_name": field_name,
+                "points": field_data["points"],
+                "values": field_data["values"],
+                "min_value": field_data["min_value"],
+                "max_value": field_data["max_value"],
+                "time_step": time_step or 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Failed to get scalar field: {str(e)}")
+            raise VisualizationError(str(e))
     
     def get_vector_field(
         self,
@@ -54,20 +95,75 @@ class VisualizationService:
         field_name: str,
         time_step: Optional[float] = None
     ) -> Dict[str, Any]:
-        num_points = 500
-        points = np.random.rand(num_points, 3).tolist()
-        vectors = np.random.rand(num_points, 3).tolist()
+        """
+        Get vector field data from VTK results.
         
-        return {
-            "field_name": field_name,
-            "points": points,
-            "vectors": vectors,
-            "scale": 1.0,
-            "time_step": time_step or 0.0
-        }
+        Args:
+            results_path: Path to simulation results
+            field_name: Name of the vector field
+            time_step: Optional time step to extract
+            
+        Returns:
+            Vector field data
+        """
+        try:
+            if not results_path or not os.path.exists(results_path):
+                raise VisualizationError(f"Results path not found: {results_path}")
+            
+            vtk_client = self._get_vtk_client()
+            field_data = vtk_client.read_vector_field(
+                results_path,
+                field_name,
+                time_step=time_step,
+            )
+            
+            return {
+                "field_name": field_name,
+                "points": field_data["points"],
+                "vectors": field_data["vectors"],
+                "scale": field_data.get("scale", 1.0),
+                "time_step": time_step or 0.0,
+            }
+        except Exception as e:
+            logger.error(f"Failed to get vector field: {str(e)}")
+            raise VisualizationError(str(e))
     
     def get_available_fields(self, results_path: Optional[str]) -> List[str]:
-        return ["p", "U", "T", "k", "epsilon", "omega", "nuTilda"]
+        """
+        Get list of available fields in results.
+        
+        Args:
+            results_path: Path to simulation results
+            
+        Returns:
+            List of available field names
+        """
+        try:
+            if not results_path or not os.path.exists(results_path):
+                return ["p", "U", "T", "k", "epsilon", "omega", "nuTilda"]
+            
+            vtk_client = self._get_vtk_client()
+            return vtk_client.list_fields(results_path)
+        except Exception as e:
+            logger.warning(f"Failed to list fields, returning defaults: {e}")
+            return ["p", "U", "T", "k", "epsilon", "omega", "nuTilda"]
     
     def get_time_steps(self, results_path: Optional[str]) -> List[float]:
-        return [0.0, 0.05, 0.1, 0.15, 0.2]
+        """
+        Get list of available time steps in results.
+        
+        Args:
+            results_path: Path to simulation results
+            
+        Returns:
+            List of available time steps
+        """
+        try:
+            if not results_path or not os.path.exists(results_path):
+                return [0.0]
+            
+            vtk_client = self._get_vtk_client()
+            return vtk_client.list_time_steps(results_path)
+        except Exception as e:
+            logger.warning(f"Failed to list time steps, returning default: {e}")
+            return [0.0]

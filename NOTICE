@@ -1,0 +1,13 @@
+Hx-CFD
+
+Copyright (c) 2026 Saran Matsa
+
+This project is licensed under the GNU General Public License v3.0.
+See the LICENSE file for the complete license text.
+
+HX CFD includes and interacts with third-party open-source software.
+Those projects remain the property of their respective authors and
+are licensed under their own terms.
+
+See THIRD_PARTY_LICENSES.md for third-party software attribution
+and license information.
