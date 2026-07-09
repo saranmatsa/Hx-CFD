@@ -8,6 +8,7 @@ import UploadPage from './pages/UploadPage'
 import ResultsPage from './pages/ResultsPage'
 import PipelinePage from './pages/PipelinePage'
 import DependencyManagerPage from './pages/DependencyManagerPage'
+import SettingsPage from './pages/SettingsPage'
 import Layout from './components/Layout'
 
 function SetupRoute({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function App() {
                 <Route path="/results/:id" element={<ResultsPage />} />
                 <Route path="/pipeline" element={<PipelinePage />} />
                 <Route path="/dependencies" element={<DependencyManagerPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </Layout>
           </RequireSetup>

@@ -159,7 +159,7 @@ services:
     networks:
       - cfd-network
 
-  # AI Services (optional)
+  # AI Services (optional - API keys managed via browser UI)
   ai-services:
     build:
       context: ./backend
@@ -167,7 +167,6 @@ services:
     container_name: cfd-ai-services
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=
     ports:
       - "8001:8001"
     depends_on:
