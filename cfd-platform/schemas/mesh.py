@@ -30,6 +30,32 @@ class MeshUpdate(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+class MeshConfig(BaseModel):
+    """Configuration schema for mesh generation."""
+    mesh_size: float = Field(default=0.1, ge=0.001, le=10.0, description="Global mesh element size")
+    refinement_level: int = Field(default=0, ge=0, le=5, description="Mesh refinement level")
+    boundary_layers: bool = Field(default=True, description="Enable boundary layer meshing")
+    num_boundary_layers: int = Field(default=3, ge=1, le=10, description="Number of boundary layers")
+    growth_rate: float = Field(default=1.2, ge=1.0, le=2.0, description="Boundary layer growth rate")
+    min_quality: float = Field(default=0.3, ge=0.0, le=1.0, description="Minimum mesh quality threshold")
+    optimize_mesh: bool = Field(default=True, description="Optimize mesh after generation")
+    algorithm: Optional[str] = Field(default="auto", description="Meshing algorithm (frontal, del2d, etc.)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "mesh_size": 0.1,
+                "refinement_level": 0,
+                "boundary_layers": True,
+                "num_boundary_layers": 3,
+                "growth_rate": 1.2,
+                "min_quality": 0.3,
+                "optimize_mesh": True,
+                "algorithm": "auto"
+            }
+        }
+
+
 class MeshResponse(BaseModel):
     """Schema for mesh response."""
     id: str

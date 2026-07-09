@@ -7,7 +7,7 @@ from core.database import get_db
 from core.security import get_current_user
 from db.models import User, Project, Mesh
 from schemas.mesh import MeshCreate, MeshResponse, MeshConfig, MeshStatus
-from services.mesh_service import MeshService
+from backend.services.mesh_service import MeshService
 
 router = APIRouter(prefix="/meshes", tags=["meshes"])
 

@@ -9,7 +9,7 @@ from schemas.optimization import (
     OptimizationCreate, OptimizationResponse, OptimizationConfig,
     OptimizationStatus, OptimizationResult
 )
-from services.optimization_service import OptimizationService
+from backend.services.optimization_service import OptimizationService
 
 router = APIRouter(prefix="/optimization", tags=["optimization"])
 

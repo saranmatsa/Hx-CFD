@@ -27,6 +27,8 @@ class AIProviderType(str, Enum):
     ANTHROPIC = "anthropic"
     OLLAMA = "ollama"
     LM_STUDIO = "lm_studio"
+    GROQ = "groq"
+    GEMINI = "gemini"
 
 
 @dataclass
@@ -724,6 +726,249 @@ class LMStudioProvider(BaseAIProvider):
         return []
 
 
+class GroqProvider(BaseAIProvider):
+    """Groq provider for fast inference."""
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.api_key = config.get("api_key") or os.environ.get("GROQ_API_KEY", "")
+        self.base_url = config.get("base_url", "https://api.groq.com/openai/v1")
+
+    def validate_config(self) -> bool:
+        """Validate Groq configuration."""
+        if not self.api_key:
+            self._logger.warning("Groq API key not configured")
+            return False
+        return True
+
+    async def chat(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs,
+    ) -> ChatCompletion:
+        """Send chat completion to Groq."""
+        import httpx
+        
+        model = model or self.config.get("model", "llama-3.1-70b-versatile")
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens or 4096,
+            **kwargs,
+        }
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            
+            if response.status_code != 200:
+                raise AIError(f"Groq API error: {response.text}")
+            
+            data = response.json()
+            
+            return ChatCompletion(
+                content=data["choices"][0]["message"]["content"],
+                model=model,
+                provider=AIProviderType.GROQ,
+                usage=data.get("usage", {}),
+            )
+
+    async def stream(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs,
+    ) -> AsyncIterator[StreamChunk]:
+        """Send streaming chat completion to Groq."""
+        import httpx
+        
+        model = model or self.config.get("model", "llama-3.1-70b-versatile")
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": temperature,
+            "max_tokens": max_tokens or 4096,
+            "stream": True,
+            **kwargs,
+        }
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            ) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = json.loads(line[6:])
+                        if data.get("choices"):
+                            content = data["choices"][0].get("delta", {}).get("content", "")
+                            if content:
+                                yield StreamChunk(content=content)
+                        elif "error" in data:
+                            raise AIError(f"Groq streaming error: {data['error']}")
+                
+                yield StreamChunk(content="", done=True)
+
+    def list_models(self) -> List[str]:
+        """List available Groq models."""
+        return [
+            "llama-3.1-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+        ]
+
+
+class GeminiProvider(BaseAIProvider):
+    """Google Gemini provider."""
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.api_key = config.get("api_key") or os.environ.get("GEMINI_API_KEY", "")
+        self.base_url = config.get("base_url", "https://generativelanguage.googleapis.com/v1beta")
+
+    def validate_config(self) -> bool:
+        """Validate Gemini configuration."""
+        if not self.api_key:
+            self._logger.warning("Gemini API key not configured")
+            return False
+        return True
+
+    async def chat(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs,
+    ) -> ChatCompletion:
+        """Send chat completion to Gemini."""
+        import httpx
+        
+        model = model or self.config.get("model", "gemini-1.5-flash")
+        # Convert model name to Gemini format
+        gemini_model = model if model.startswith("models/") else f"models/{model}"
+        
+        # Convert messages to Gemini format
+        contents = []
+        for msg in messages:
+            if msg.role == "user":
+                contents.append({"role": "user", "parts": [{"text": msg.content}]})
+            elif msg.role == "assistant":
+                contents.append({"role": "model", "parts": [{"text": msg.content}]})
+        
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or 2048,
+            },
+        }
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{self.base_url}/{gemini_model}:generateContent?key={self.api_key}",
+                json=payload,
+            )
+            
+            if response.status_code != 200:
+                raise AIError(f"Gemini API error: {response.text}")
+            
+            data = response.json()
+            content = data["candidates"][0]["content"]["parts"][0]["text"]
+            
+            return ChatCompletion(
+                content=content,
+                model=model,
+                provider=AIProviderType.GEMINI,
+                usage={
+                    "prompt_tokens": data.get("usageMetadata", {}).get("promptTokenCount", 0),
+                    "completion_tokens": data.get("usageMetadata", {}).get("candidatesTokenCount", 0),
+                },
+            )
+
+    async def stream(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        **kwargs,
+    ) -> AsyncIterator[StreamChunk]:
+        """Send streaming chat completion to Gemini."""
+        import httpx
+        
+        model = model or self.config.get("model", "gemini-1.5-flash")
+        gemini_model = model if model.startswith("models/") else f"models/{model}"
+        
+        contents = []
+        for msg in messages:
+            if msg.role == "user":
+                contents.append({"role": "user", "parts": [{"text": msg.content}]})
+            elif msg.role == "assistant":
+                contents.append({"role": "model", "parts": [{"text": msg.content}]})
+        
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens or 2048,
+            },
+        }
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/{gemini_model}:streamGenerateContent?key={self.api_key}",
+                json=payload,
+            ) as response:
+                async for line in response.aiter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if content := data.get("candidates"):
+                                text = content[0]["content"]["parts"][0].get("text", "")
+                                if text:
+                                    yield StreamChunk(content=text)
+                        except json.JSONDecodeError:
+                            continue
+                
+                yield StreamChunk(content="", done=True)
+
+    def list_models(self) -> List[str]:
+        """List available Gemini models."""
+        return [
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-8b",
+            "gemini-2.0-flash-exp",
+            "gemini-exp-1206",
+        ]
+
+
 class AIService:
     """
     AI service providing a unified interface for all providers.
@@ -779,6 +1024,24 @@ class AIService:
                     self._default_provider = AIProviderType.LM_STUDIO
             except Exception as e:
                 self._logger.warning("failed_to_initialize_lmstudio", error=str(e))
+
+        # Initialize Groq
+        if groq_config := settings.AI_PROVIDERS.get("groq"):
+            try:
+                self._providers[AIProviderType.GROQ] = GroqProvider(groq_config)
+                if self._default_provider is None:
+                    self._default_provider = AIProviderType.GROQ
+            except Exception as e:
+                self._logger.warning("failed_to_initialize_groq", error=str(e))
+
+        # Initialize Gemini
+        if gemini_config := settings.AI_PROVIDERS.get("gemini"):
+            try:
+                self._providers[AIProviderType.GEMINI] = GeminiProvider(gemini_config)
+                if self._default_provider is None:
+                    self._default_provider = AIProviderType.GEMINI
+            except Exception as e:
+                self._logger.warning("failed_to_initialize_gemini", error=str(e))
 
         self._logger.info(
             "providers_initialized",

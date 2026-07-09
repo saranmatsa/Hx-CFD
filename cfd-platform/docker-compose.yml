@@ -1,5 +1,6 @@
 # CFD Platform Local Development Docker Compose
 # Phase 4: Local Desktop Deployment Architecture with Service Manager
+# NOTE: All configuration values are hardcoded (no environment variables)
 #
 # Usage:
 #   docker-compose up -d              # Start all services
@@ -13,16 +14,16 @@ services:
     image: postgres:15-alpine
     container_name: cfd-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-cfd_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cfd_password}
-      POSTGRES_DB: ${POSTGRES_DB:-cfd_platform}
+      POSTGRES_USER: cfd_user
+      POSTGRES_PASSWORD: cfd_password
+      POSTGRES_DB: cfd_platform
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cfd_user}"]
+      test: ["CMD-SHELL", "pg_isready -U cfd_user"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,7 +35,7 @@ services:
     image: redis:7-alpine
     container_name: cfd-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -52,17 +53,17 @@ services:
       dockerfile: ../infrastructure/docker/backend/Dockerfile
     container_name: cfd-backend
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - DATABASE_URL=postgresql://cfd_user:cfd_password@postgres:5432/cfd_platform
       - REDIS_URL=redis://redis:6379/0
       - API_V1_PREFIX=/api/v1
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - SECRET_KEY=your-secret-key-change-in-production
       - ENVIRONMENT=development
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - OPENFOAM_DIR=${OPENFOAM_DIR:-/opt/OpenFOAM}
-      - GMSH_BIN=${GMSH_BIN:-/usr/bin/gmsh}
-      - FREECAD_BIN=${FREECAD_BIN:-/usr/bin/freecad}
+      - LOG_LEVEL=info
+      - OPENFOAM_DIR=/opt/OpenFOAM
+      - GMSH_BIN=/usr/bin/gmsh
+      - FREECAD_BIN=/usr/bin/freecad
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - ./backend:/app
       - cfd_data:/data
@@ -94,11 +95,11 @@ services:
       - cfd_data:/data
       - /tmp/cfd:/tmp/cfd
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - DATABASE_URL=postgresql://cfd_user:cfd_password@postgres:5432/cfd_platform
       - REDIS_URL=redis://redis:6379/0
-      - OPENFOAM_DIR=${OPENFOAM_DIR:-/opt/OpenFOAM}
-      - GMSH_BIN=${GMSH_BIN:-/usr/bin/gmsh}
-      - FREECAD_BIN=${FREECAD_BIN:-/usr/bin/freecad}
+      - OPENFOAM_DIR=/opt/OpenFOAM
+      - GMSH_BIN=/usr/bin/gmsh
+      - FREECAD_BIN=/usr/bin/freecad
     depends_on:
       - redis
       - postgres
@@ -115,7 +116,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-cfd_user}:${POSTGRES_PASSWORD:-cfd_password}@postgres:5432/${POSTGRES_DB:-cfd_platform}
+      - DATABASE_URL=postgresql://cfd_user:cfd_password@postgres:5432/cfd_platform
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
@@ -131,7 +132,7 @@ services:
     container_name: cfd-flower
     command: celery -A workers.celery_app flower --port=5555
     ports:
-      - "${FLOWER_PORT:-5555}:5555"
+      - "5555:5555"
     environment:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
@@ -146,10 +147,10 @@ services:
       dockerfile: Dockerfile.dev
     container_name: cfd-frontend
     environment:
-      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8000}
-      - VITE_WS_URL=ws://localhost:${BACKEND_PORT:-8000}
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
     ports:
-      - "${FRONTEND_PORT:-3000}:5173"
+      - "3000:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -166,9 +167,9 @@ services:
     container_name: cfd-ai-services
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_KEY=
     ports:
-      - "${AI_SERVICES_PORT:-8001}:8001"
+      - "8001:8001"
     depends_on:
       - redis
     networks:

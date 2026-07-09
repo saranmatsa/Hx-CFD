@@ -9,7 +9,7 @@ from schemas.visualization import (
     VisualizationData, VisualizationResponse, MeshDataPoint,
     ScalarFieldData, VectorFieldData
 )
-from services.visualization_service import VisualizationService
+from backend.services.visualization_service import VisualizationService
 
 router = APIRouter(prefix="/visualization", tags=["visualization"])
 

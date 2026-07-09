@@ -22,8 +22,8 @@ celery_app = Celery(
 # Configure Celery
 celery_app.conf.update(
     # Broker settings
-    broker_url=settings.celery.broker_url,
-    result_backend=settings.celery.result_backend,
+    broker_url=settings.CELERY_BROKER_URL,
+    result_backend=settings.CELERY_RESULT_BACKEND,
     
     # Task settings
     task_serializer="json",

@@ -9,7 +9,7 @@ from db.models import User, Project, Simulation
 from schemas.simulation import (
     SimulationCreate, SimulationResponse, SimulationConfig, SimulationStatus
 )
-from services.simulation_service import SimulationService
+from backend.services.simulation_service import SimulationService
 
 router = APIRouter(prefix="/simulations", tags=["simulations"])
 
