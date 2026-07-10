@@ -1,6 +1,134 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cfd-backend"
+version = "1.0.0"
+description = "CFD Platform Backend - FastAPI service for CFD orchestration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "CFD Platform Team"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.0",
+    "httpx>=0.26.0",
+    "psutil>=5.9.0",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+    "rich>=13.7.0",
+    "watchdog>=3.0.0",
+    "redis>=5.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "celery>=5.3.0",
+    "flower>=2.0.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "pandas>=2.1.0",
+    "meshio>=5.3.0",
+    "vtk>=9.3.0",
+    "pyvista>=0.43.0",
+    "trimesh>=4.0.0",
+    "openfoam-parser>=0.1.0",
+    "gmsh>=4.11.0",
+    "nevergrad>=0.4.5",
+    "openmdao>=3.30.0",
+    "physicsnemo>=0.1.0",
+    "physicsnemo-cfd>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "black>=23.12.0",
+    "isort>=5.13.0",
+    "pre-commit>=3.6.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.25.0",
+]
+
+[project.scripts]
+cfd-backend = "cfd_backend.main:main"
+cfd-backend-dev = "cfd_backend.main:dev_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cfd_backend*"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM", "T20", "PIE", "PT", "QF", "RSE", "RET", "ERA", "PD", "PGH", "PL", "TRY", "NPY", "PERF", "TCH", "INT", "ARG", "PTH", "FA", "FLY", "ICN", "ISC", "PD", "PGH", "PL", "PT", "QF", "RSE", "RET", "SIM", "T20", "TRY", "UP", "W"]
+ignore = ["E501", "B008", "C901", "T201", "T203", "S101", "S113", "S311", "S603", "S607"]
+per-file-ignores = ["tests/*": ["S101", "S113", "S311", "S603", "S607"]]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = true
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+implicit_reexport = true
+allow_untyped_globals = false
+allow_untyped_calls = false
+allow_untyped_decorators = false
+allow_incomplete_defs = false
+check_untyped_defs = true
+disallow_any_unimported = true
+disallow_any_expr = true
+disallow_any_decorated = true
+disallow_any_explicit = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+ignore_missing_imports = true
+
 [tool.black]
 line-length = 100
-target-version = ['py310']
+target-version = ["py310"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -11,80 +139,33 @@ extend-exclude = '''
   | \.mypy_cache
   | \.tox
   | \.venv
+  | _build
+  | buck-out
   | build
   | dist
-  | alembic
 )/
 '''
 
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-]
-ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-]
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".ruff_cache",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "alembic",
-]
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
 
-[tool.ruff.per-file-ignores]
-"__init__.py" = ["F401"]
-"tests/*" = ["S101"]
+[tool.coverage.run]
+source = ["src/cfd_backend"]
+omit = ["tests/*", "*/migrations/*"]
 
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-ignore_missing_imports = true
-exclude = [
-    "alembic/",
-    "tests/",
-]
-
-[tool.pytest.ini_options]
-testpaths = ["backend/tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--strict-markers",
-    "--cov=backend",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--asyncio-mode=auto"
-]
-markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "slow: Slow running tests",
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]

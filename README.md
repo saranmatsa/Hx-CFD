@@ -1,285 +1,359 @@
-# CFD Platform - Browser-based CFD Simulation Platform
+# CFD Platform
 
-An open-source browser-based CFD (Computational Fluid Dynamics) platform that enables engineers and researchers to perform CFD simulations directly in the browser on their local machine.
+**A web-based workflow platform for computational fluid dynamics: upload CAD models, generate meshes, run simulations, and visualize results—all from a single interface.**
 
-## Features
+---
 
-- **CAD Import & Editing**: Import STEP/STL files, edit CAD parameters interactively
-- **Mesh Generation**: Generate computational meshes using Gmsh integration
-- **CFD Simulation**: Run OpenFOAM simulations with full solver support
-- **Post-Processing**: Analyze and visualize pressure, velocity, streamlines
-- **Aerodynamic Coefficients**: Calculate and display drag and lift coefficients
-- **3D Visualization**: Interactive browser-based 3D viewer using Three.js/R3F
-- **AI Optimization**: Future-ready integration with OpenMDAO and Nevergrad
+## The Problem
 
-## Tech Stack
+CFD workflows typically require juggling multiple disconnected tools:
 
-### Core Engines
-- OpenFOAM - CFD solver
-- Gmsh - Mesh generation
-- FreeCAD - CAD operations
-- ParaView - Visualization
+- Export geometry from CAD software
+- Manually configure mesh generation parameters in Gmsh or similar
+- Set up case files and boundary conditions for OpenFOAM
+- Run simulations from the command line
+- Export results to separate visualization software
+- Repeat iterations manually when parameters change
 
-### Frontend
-- React 18
-- TypeScript
-- Three.js / React Three Fiber
-- VTK.js
-- Zustand (state management)
-- TanStack Query (server state)
+This fragmentation means context-switching between applications, manual file transfers, and difficulty reproducing or sharing workflows across a team.
 
-### Backend
-- FastAPI
-- PyVista
-- Meshio
-- NumPy / SciPy
-- Celery (job queue)
-- Redis (message broker)
+---
 
-### Optimization
-- OpenMDAO
-- Nevergrad
+## The Solution
+
+CFD Platform provides a unified web interface that connects your CAD-to-results workflow:
+
+- **No command-line required** — configure and run simulations through a browser
+- **Automatic mesh generation** — upload STEP/IGES files, specify element sizing, generate meshes without opening separate software
+- **Real-time progress tracking** — monitor simulation status and residuals as jobs run
+- **Integrated visualization** — view scalar and vector fields without exporting to external tools
+- **Project organization** — manage geometries, meshes, simulations, and results in structured projects
+
+---
+
+## Key Features
+
+### Mesh Generation from CAD Files
+Upload STEP or IGES geometry files directly. Configure element size, growth rate, and boundary layer settings through the interface. Generate meshes without leaving the browser.
+
+### Simulation Execution
+Run OpenFOAM solvers (simpleFoam, pimpleFoam, interFoam, and others) with configurable turbulence models. Set up cases through form-based inputs rather than editing text files manually.
+
+### Results Visualization
+View pressure, velocity, and other scalar fields directly in the browser. Extract vector fields and examine results without exporting to ParaView or other visualization tools.
+
+### Pipeline Automation
+Chain mesh generation, simulation, and visualization steps into automated pipelines. Upload a CAD file, specify configuration, and receive results when the pipeline completes.
+
+### Project Management
+Organize work into projects containing geometries, meshes, simulations, and results. Track iterations and compare outcomes across parameter studies.
+
+### Multi-Provider AI Configuration
+Connect to NVIDIA NIM, OpenAI, Anthropic, Ollama, LM Studio, Groq, Google Gemini, or OpenRouter for AI-assisted parameter configuration. *(AI integration is experimental—see Project Status below.)*
+
+---
+
+## Example Workflow
+
+1. **Create a project** named "Airfoil Analysis"
+2. **Upload** a STEP file containing your geometry
+3. **Configure mesh** — set element size to 0.01m, enable boundary layers with 3 layers
+4. **Create a simulation** — select simpleFoam solver with k-epsilon turbulence model
+5. **Start the pipeline** — the platform generates the mesh, runs the simulation, and extracts results
+6. **View results** — examine pressure distribution and velocity fields in the built-in viewer
+7. **Iterate** — adjust parameters and re-run without re-uploading geometry
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker Desktop (Windows/Mac) or Docker + Docker Compose (Linux)
-- 8GB RAM minimum (16GB recommended)
+- Python 3.10+
+- Node.js 18+
+- PostgreSQL 14+ (SQLite works for development)
+- Redis 6+
+- OpenFOAM installed and `OPENFOAM_DIR` environment variable set
+- Gmsh installed and `GMSH_BIN` environment variable set
 
-### One-Command Setup
+### Run with Docker Compose
 
-#### Windows
-```powershell
-.\setup.ps1
-```
-
-#### Linux/Mac
 ```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-### Manual Setup
-
-1. Clone the repository:
-```bash
-git clone https://github.com/your-org/cfd-platform.git
 cd cfd-platform
-```
-
-2. Configure environment:
-```bash
-cp .env.example .env
-```
-
-3. Start with Docker Compose:
-```bash
 docker-compose up -d
 ```
 
-4. Run database migrations:
+Access the web interface at `http://localhost:3000`.
+
+### Run Locally
+
+**Backend:**
+
 ```bash
-docker-compose exec backend alembic upgrade head
-```
-
-5. Access the application:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-
-### Manual Development Setup (Without Docker)
-
-#### Backend
-```bash
-cd backend
+cd cfd-platform
 python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+.\venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn backend.main:app --reload --port 8000
 ```
 
-#### Frontend
+**Frontend:**
+
 ```bash
-cd frontend
+cd cfd-platform/frontend
 npm install
 npm run dev
 ```
 
-**Note**: For manual setup, you'll need PostgreSQL and Redis running locally.
+Access the web interface at `http://localhost:5173`.
 
-## Architecture
+---
 
-```
-cfd-platform/
-├── backend/          # FastAPI backend
-│   ├── api/          # API endpoints
-│   │   ├── __init__.py
-│   │   ├── mesh_routes.py
-│   │   ├── simulation_routes.py
-│   │   ├── visualization_routes.py
-│   │   └── pipeline_routes.py    # NEW: Pipeline orchestration API
-│   ├── core/         # Core functionality
-│   ├── services/     # Business logic
-│   │   ├── mesh_service.py
-│   │   ├── simulation_service.py
-│   │   └── visualization_service.py
-│   ├── workers/      # Background job processing
-│   ├── integrations/ # External tool integrations
-│   │   ├── freecad/  # FreeCAD Python API client
-│   │   ├── gmsh/     # Gmsh Python API client
-│   │   ├── openfoam/ # OpenFOAM CLI client
-│   │   ├── vtk/      # VTK post-processing client
-│   │   └── pipeline/ # Pipeline orchestrator
-│   └── db/           # Database models
-├── frontend/         # React application
-│   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── hooks/       # Custom React hooks
-│   │   ├── services/    # API services
-│   │   ├── store/       # State management
-│   │   └── types/       # TypeScript types
-├── shared/           # Shared types and schemas
-├── infrastructure/   # Docker, Kubernetes configs
-└── docs/             # Documentation
-```
+## Installation
 
-## Automated CFD Pipeline
+### Environment Variables
 
-The platform provides a fully automated CFD pipeline that orchestrates multiple tools:
-
-```
-STEP/IGES → FreeCAD → Gmsh → OpenFOAM → VTK → Browser
-```
-
-### Pipeline Stages
-
-| Stage | Tool | Description |
-|-------|------|-------------|
-| 1. CAD Import | FreeCAD | Import STEP/IGES files, convert to BREP |
-| 2. Geometry Repair | FreeCAD | Fix CAD geometry issues, heal bodies |
-| 3. Mesh Generation | Gmsh | Create computational mesh with boundary layers |
-| 4. Case Setup | OpenFOAM | Configure boundary conditions, transport properties |
-| 5. Simulation | OpenFOAM | Run CFD solver (simpleFoam, pimpleFoam, etc.) |
-| 6. Post-Processing | VTK | Convert OpenFOAM results to VTK format |
-| 7. Visualization | VTK | Generate images, extract slices, compute streamlines |
-
-### Integration Clients
-
-#### FreeCAD Client (`backend/integrations/freecad/client.py`)
-```python
-from backend.integrations.freecad import FreeCADClient
-
-client = FreeCADClient()
-result = await client.import_step("geometry.step")
-boundaries = await client.get_boundary_conditions(result.body_id)
-```
-
-#### Gmsh Client (`backend/integrations/gmsh/client.py`)
-```python
-from backend.integrations.gmsh import GmshClient
-
-client = GmshClient()
-mesh = await client.create_mesh(geometry, mesh_size=0.05)
-stats = await client.get_mesh_stats(mesh)
-```
-
-#### OpenFOAM Client (`backend/integrations/openfoam/client.py`)
-```python
-from backend.integrations.openfoam import OpenFOAMClient, SolverType
-
-client = OpenFOAMClient()
-case = await client.create_case("channel", solver=SolverType.SIMPLE_FOAM)
-await client.run_simulation(case, end_time=1000)
-```
-
-#### VTK Client (`backend/integrations/vtk/client.py`)
-```python
-from backend.integrations.vtk import VTKClient
-
-client = VTKClient()
-vtk_file = await client.convert_openfoam_to_vtk(case_dir)
-image = await client.generate_image(vtk_file, field="pressure")
-```
-
-#### Pipeline Orchestrator (`backend/integrations/pipeline/orchestrator.py`)
-```python
-from backend.integrations.pipeline import CFDOrchestrator, PipelineConfig
-
-orchestrator = CFDOrchestrator(work_dir="/tmp/cfd")
-result = await orchestrator.run_pipeline(
-    input_file="geometry.step",
-    output_dir="./output",
-    parameters={"mesh_size": 0.05, "solver": "simpleFoam"}
-)
-```
-
-### Pipeline API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/pipeline/start` | Start a new pipeline job (upload STEP file) |
-| GET | `/api/pipeline/status/{job_id}` | Get job status and progress |
-| GET | `/api/pipeline/result/{job_id}` | Get final results |
-| GET | `/api/pipeline/visualization/{job_id}` | Download visualization image |
-| GET | `/api/pipeline/mesh/{job_id}` | Download mesh file |
-| GET | `/api/pipeline/case/{job_id}` | Get OpenFOAM case directory info |
-| POST | `/api/pipeline/cancel/{job_id}` | Cancel a running job |
-| DELETE | `/api/pipeline/{job_id}` | Delete a job |
-| GET | `/api/pipeline/jobs` | List all jobs |
-| GET | `/api/pipeline/stages` | Get pipeline stage descriptions |
-
-### Example: Start Pipeline Job
+Create a `.env` file in `cfd-platform/` with:
 
 ```bash
-# Upload STEP file and start pipeline
-curl -X POST http://localhost:8000/api/pipeline/start \
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/cfddb
+# Or for development:
+# DATABASE_URL=sqlite:///./cfd.db
+
+# External Tools
+OPENFOAM_DIR=/path/to/OpenFOAM
+GMSH_BIN=/path/to/gmsh
+FREECAD_BIN=/path/to/freecad
+
+# Optional: AI Provider API Keys
+NIM_API_KEY=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GROQ_API_KEY=
+GEMINI_API_KEY=
+```
+
+### Database Setup
+
+```bash
+cd cfd-platform
+alembic upgrade head
+```
+
+### Frontend Configuration
+
+```bash
+cd cfd-platform/frontend
+cp .env.example .env  # Configure API endpoint if not running locally
+```
+
+---
+
+## Usage
+
+### Web Interface
+
+1. **Dashboard** — Overview of projects and recent activity
+2. **Projects** — Create and manage project workspaces
+3. **Upload** — Drag-and-drop CAD files (STEP, IGES)
+4. **Simulations** — Configure and launch simulation runs
+5. **Pipeline** — Monitor automated workflow execution
+6. **Settings** — Configure AI providers and system dependencies
+
+### API Access
+
+The backend exposes a REST API at `/api/v1/`. Authenticate with JWT tokens:
+
+```bash
+# Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user", "password": "pass"}'
+
+# Create project
+curl -X POST http://localhost:8000/api/v1/projects \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Test Project"}'
+
+# Start pipeline
+curl -X POST http://localhost:8000/api/v1/pipeline/start \
+  -H "Authorization: Bearer <token>" \
   -F "file=@geometry.step" \
-  -F 'parameters={
-    "mesh_size": 0.05,
-    "solver": "simpleFoam",
-    "end_time": 1000,
-    "color_field": "pressure"
-  }'
-
-# Response
-{
-  "job_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "queued",
-  "message": "Pipeline job created. Processing will begin shortly.",
-  "status_url": "/api/pipeline/status/550e8400-e29b-41d4-a716-446655440000"
-}
+  -F "project_id=<uuid>" \
+  -F "config={\"element_size\": 0.1, \"solver\": \"simpleFoam\"}"
 ```
 
-### Example: Check Job Status
+---
 
-```bash
-curl http://localhost:8000/api/pipeline/status/550e8400-e29b-41d4-a716-446655440000
+## Supported Workflows
+### Available
 
-# Response
-{
-  "job_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "running",
-  "stages_completed": ["cad_import", "geometry_repair", "mesh_generation"],
-  "current_stage": "case_setup",
-  "progress": 0.43,
-  "errors": [],
-  "output_paths": {
-    "mesh": "/tmp/cfd_pipeline/output/mesh.msh",
-    "brep": "/tmp/cfd_pipeline/output/geometry.brep"
-  },
-  "execution_time": 45.2
-}
-```
+| Workflow | Status | Notes |
+|----------|--------|-------|
+| CAD file upload (STEP, IGES) | Available | Drag-and-drop interface |
+| Mesh generation (Gmsh) | Available | Configurable element size, growth rate, boundary layers |
+| OpenFOAM simulation | Available | Supports simpleFoam, pimpleFoam, interFoam, rhoCentralFoam, dnsFoam |
+| Turbulence models | Available | kEpsilon, kOmega, SpalartAllmaras, LES models |
+| Results visualization | Available | Scalar and vector field extraction via VTK |
+| Pipeline automation | Available | End-to-end CAD-to-results workflow |
+| Project management | Available | Organize geometries, meshes, simulations |
+| Multi-user access | Available | JWT authentication |
 
-## API Documentation
+### Experimental
 
-API documentation is available at `/api/docs` when the backend is running.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| AI-assisted configuration | Experimental | Connects to LLM providers; not fully validated |
+| Optimization workflows | Experimental | Endpoints exist but return placeholder data |
 
-## License
+### Planned
 
-See [LICENSE](LICENSE) for details.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Advanced visualization | Planned | Enhanced 3D rendering and animation |
+| Parameter studies | Planned | Batch simulation across parameter ranges |
+| Results comparison | Planned | Side-by-side comparison of simulation results |
+
+---
+
+## Project Status
+
+CFD Platform is under active development. Core mesh generation, simulation, and visualization workflows are functional. AI-assisted features and optimization workflows are experimental.
+
+**Known limitations:**
+
+- Optimization endpoints return placeholder responses
+- AI provider integration is configured but not fully validated in production use
+- FreeCAD and ParaView integrations are present in configuration but not actively used in the pipeline
+
+---
+
+## Documentation
+
+- [Quick Start Guide](cfd-platform/QUICKSTART.md)
+- [Architecture Overview](cfd-platform/ARCHITECTURE.md)
+- [Contributing Guidelines](cfd-platform/CONTRIBUTING.md)
+- [Engineering Audit](cfd-platform/ENGINEERING_AUDIT.md)
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+Contributions are welcome. See [CONTRIBUTING.md](cfd-platform/CONTRIBUTING.md) for guidelines on code style, testing, and pull request process.
+
+Key areas for contribution:
+
+- Visualization improvements
+- Additional solver support
+- AI integration validation
+- Documentation
+
+---
+
+## License
+
+See [LICE# Prompt: Implement Automatic Dependency Installation
+
+Act as a Principal Software Architect, DevOps Engineer, and Platform Engineer.
+
+Implement a complete dependency installation and management system for this application.
+
+## Goal
+
+A new user should be able to clone the repository, run the setup process once, and have every required dependency automatically installed and configured.
+
+The user should never need to manually search for downloads, clone third-party repositories, or configure paths.
+
+## Dependencies to Manage
+
+The installer must support the following external software:
+
+* OpenFOAM
+* Gmsh
+* FreeCAD
+* ParaView
+* PyVista
+* Meshio
+* OpenMDAO
+* Nevergrad
+* PhysicsNeMo
+* PhysicsNeMo CFD
+* Three.js
+* React Three Fiber
+* VTK.js
+* Drei
+
+## Installation Strategy
+
+For each dependency:
+
+1. Detect whether it is already installed.
+2. Determine the installed version.
+3. Verify that it works correctly.
+4. If missing, install it using the official installation method.
+5. Configure environment variables if required.
+6. Register the dependency inside the application.
+7. Verify the installation after completion.
+
+Do not hardcode download links if official package managers, release APIs, or package registries exist.
+
+Prefer the official installation mechanism for every dependency.
+
+Examples:
+
+* Python libraries → pip
+* JavaScript libraries → npm
+* Docker images → Docker
+* Official installers → official releases
+* AI models → official model manager (for example, Ollama)
+
+## User Interface
+
+Create a Dependency Manager page displaying:
+
+* Name
+* Installed
+* Missing
+* Current Version
+* Latest Version
+* Install
+* Update
+* Remove
+* Verify
+* Installation Progress
+* Installation Logs
+
+## Installation Workflow
+
+When the user presses "Install All":
+
+* Check every dependency.
+* Skip those already installed.
+* Install only missing dependencies.
+* Continue if one dependency fails.
+* Show progress for every dependency.
+* Display a final installation summary.
+
+## Error Handling
+
+Handle:
+
+* Missing internet connection
+* Unsupported operating systems
+* Permission issues
+* Installation failures
+* Version conflicts
+* Corrupted installations
+
+Provide clear recovery instructions.
+
+## Extensibility
+
+The dependency manager must be modular.
+
+Adding a future dependency should require only implementing a new provider, without changing the core installation engine.
+
+The final implementation should feel similar to professional installers such as Visual Studio Installer, Unity Hub, or Docker Desktop, where users click "Install" and the application manages all required dependencies automatically.
+NSE](LICENSE) in the project root.
