@@ -7,7 +7,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+import re
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,16 +39,43 @@ class TokenResponse(BaseModel):
 
 class UserCreate(BaseModel):
     """User creation model."""
-    email: EmailStr
+    email: Optional[str] = None
     username: str
     password: str
     full_name: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        """Validate email format with simple regex if provided."""
+        if v is None:
+            return None
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(email_pattern, v):
+            raise ValueError("Invalid email format")
+        return v.lower()
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        """Validate username: alphanumeric, 3-50 chars."""
+        if not re.match(r"^[a-zA-Z0-9]{3,50}$", v):
+            raise ValueError("Username must be 3-50 alphanumeric characters")
+        return v.lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate password: minimum 8 characters."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
 
 
 class UserResponse(BaseModel):
     """User response model."""
     id: str
-    email: str
+    email: Optional[str]
     username: str
     full_name: Optional[str]
     role: UserRole
@@ -137,10 +165,11 @@ async def register(
             detail="Registration is not allowed",
         )
     
-    # Check if email exists
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none():
-        raise ValidationError("Email already registered")
+    # Check if email exists (only if email is provided)
+    if user_data.email:
+        result = await db.execute(select(User).where(User.email == user_data.email))
+        if result.scalar_one_or_none():
+            raise ValidationError("Email already registered")
     
     # Check if username exists
     result = await db.execute(select(User).where(User.username == user_data.username))
@@ -185,11 +214,9 @@ async def login(
     """Login and get access token."""
     settings = get_settings()
     
-    # Find user by username or email
+    # Find user by username only (no email login)
     result = await db.execute(
-        select(User).where(
-            (User.username == form_data.username) | (User.email == form_data.username)
-        )
+        select(User).where(User.username == form_data.username)
     )
     user = result.scalar_one_or_none()
     
@@ -204,10 +231,9 @@ async def login(
     
     # Create tokens
     access_token = create_access_token(
-        subject=str(user.id),
-        scopes=["user"],
+        data={"sub": str(user.id), "scopes": ["user"]},
     )
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
     
     # Create session
     session = UserSession(
@@ -286,8 +312,8 @@ async def refresh_token(
         raise AuthenticationError("User not found or inactive")
     
     # Create new tokens
-    new_access_token = create_access_token(subject=str(user.id), scopes=["user"])
-    new_refresh_token = create_refresh_token(subject=str(user.id))
+    new_access_token = create_access_token(data={"sub": str(user.id), "scopes": ["user"]})
+    new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
     
     # Revoke old session
     session.is_revoked = True

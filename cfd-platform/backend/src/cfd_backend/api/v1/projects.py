@@ -15,10 +15,9 @@ from sqlalchemy.orm import selectinload
 from cfd_backend.core.config import get_settings
 from cfd_backend.core.dependencies import get_db_session
 from cfd_backend.core.exceptions import NotFoundError, ValidationError
-from cfd_backend.models.project import Project, ProjectStatus, ProjectVisibility
+from cfd_backend.models.project import Project, ProjectStatus, ProjectVisibility, Simulation
 from cfd_backend.models.user import User, UserRole
 from cfd_backend.models.mesh import Mesh
-from cfd_backend.models.simulation import Simulation
 from cfd_backend.api.v1.auth import get_current_active_user
 
 router = APIRouter()

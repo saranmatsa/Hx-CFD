@@ -44,12 +44,9 @@ dependencies = [
     "vtk>=9.3.0",
     "pyvista>=0.43.0",
     "trimesh>=4.0.0",
-    "openfoam-parser>=0.1.0",
     "gmsh>=4.11.0",
     "nevergrad>=0.4.5",
     "openmdao>=3.30.0",
-    "physicsnemo>=0.1.0",
-    "physicsnemo-cfd>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +65,11 @@ docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.25.0",
+]
+cfd = [
+    "physicsnemo>=0.1.0",
+    "physicsnemo-cfd>=0.1.0",
+    "openfoam-parser>=0.1.0",
 ]
 
 [project.scripts]
@@ -93,7 +95,7 @@ line-length = 100
 target-version = "py310"
 select = ["E", "F", "I", "W", "UP", "B", "C4", "SIM", "T20", "PIE", "PT", "QF", "RSE", "RET", "ERA", "PD", "PGH", "PL", "TRY", "NPY", "PERF", "TCH", "INT", "ARG", "PTH", "FA", "FLY", "ICN", "ISC", "PD", "PGH", "PL", "PT", "QF", "RSE", "RET", "SIM", "T20", "TRY", "UP", "W"]
 ignore = ["E501", "B008", "C901", "T201", "T203", "S101", "S113", "S311", "S603", "S607"]
-per-file-ignores = ["tests/*": ["S101", "S113", "S311", "S603", "S607"]]
+per-file-ignores = { "tests/*" = ["S101", "S113", "S311", "S603", "S607"] }
 
 [tool.ruff.format]
 quote-style = "double"
@@ -117,7 +119,6 @@ allow_untyped_globals = false
 allow_untyped_calls = false
 allow_untyped_decorators = false
 allow_incomplete_defs = false
-check_untyped_defs = true
 disallow_any_unimported = true
 disallow_any_expr = true
 disallow_any_decorated = true

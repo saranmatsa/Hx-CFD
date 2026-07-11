@@ -1,0 +1,139 @@
+{
+  "version": "1.0.0",
+  "components": [
+    {
+      "id": "hx-cfd-runtime",
+      "name": "HX CFD Runtime",
+      "version": "1.0.0",
+      "description": "Core HX CFD application runtime",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "hx-cfd-runtime-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 157286400,
+          "extractTo": "."
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "hx-cfd-python",
+      "name": "HX CFD Python Environment",
+      "version": "3.11.8",
+      "description": "Embedded Python 3.11 with scientific packages",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "hx-cfd-python-3.11.8-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 209715200,
+          "extractTo": "python"
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "openfoam-runtime",
+      "name": "OpenFOAM v11 Runtime",
+      "version": "11.0.0",
+      "description": "OpenFOAM v11 Windows runtime with MPI support",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "openfoam-v11-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 524288000,
+          "extractTo": "openfoam"
+        }
+      ],
+      "dependencies": ["hx-cfd-python"],
+      "environmentVariables": {
+        "FOAM_INST_DIR": "{INSTALL_DIR}\\openfoam",
+        "WM_PROJECT_DIR": "{INSTALL_DIR}\\openfoam",
+        "WM_PROJECT_VERSION": "v11",
+        "WM_MPLIB": "MSMPI",
+        "PATH": "{INSTALL_DIR}\\openfoam\\bin;{INSTALL_DIR}\\openfoam\\wmake;{PATH}"
+      }
+    },
+    {
+      "id": "gmsh-runtime",
+      "name": "Gmsh 4.11 Runtime",
+      "version": "4.11.1",
+      "description": "Gmsh 4.11 mesh generator runtime",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "gmsh-4.11.1-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 52428800,
+          "extractTo": "gmsh"
+        }
+      ],
+      "dependencies": [],
+      "environmentVariables": {
+        "GMSH_PATH": "{INSTALL_DIR}\\gmsh",
+        "PATH": "{INSTALL_DIR}\\gmsh;{PATH}"
+      }
+    },
+    {
+      "id": "paraview-runtime",
+      "name": "ParaView 5.12 Runtime",
+      "version": "5.12.0",
+      "description": "ParaView 5.12 post-processing runtime",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "paraview-5.12.0-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 419430400,
+          "extractTo": "paraview"
+        }
+      ],
+      "dependencies": [],
+      "environmentVariables": {
+        "PARAVIEW_PATH": "{INSTALL_DIR}\\paraview",
+        "PATH": "{INSTALL_DIR}\\paraview\\bin;{PATH}"
+      }
+    },
+    {
+      "id": "hx-cfd-examples",
+      "name": "HX CFD Examples",
+      "version": "1.0.0",
+      "description": "Example cases and tutorials",
+      "required": false,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "hx-cfd-examples-1.0.0.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 104857600,
+          "extractTo": "examples"
+        }
+      ],
+      "dependencies": ["hx-cfd-runtime"]
+    },
+    {
+      "id": "hx-cfd-docs",
+      "name": "HX CFD Documentation",
+      "version": "1.0.0",
+      "description": "Offline documentation and user guides",
+      "required": false,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "url": "hx-cfd-docs-1.0.0.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 52428800,
+          "extractTo": "docs"
+        }
+      ],
+      "dependencies": []
+    }
+  ]
+}

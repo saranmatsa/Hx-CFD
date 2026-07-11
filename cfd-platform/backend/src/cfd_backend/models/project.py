@@ -10,10 +10,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import Enum, ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from cfd_backend.models.base import Base, BaseModel, JSONColumn
+from cfd_backend.models.base import Base, BaseModel, JSONBType
+from cfd_backend.models.simulation import Simulation, SimulationStatus, SolverType
 
 
 class ProjectStatus(str, enum.Enum):
@@ -22,6 +22,13 @@ class ProjectStatus(str, enum.Enum):
     ACTIVE = "active"
     ARCHIVED = "archived"
     DELETED = "deleted"
+
+
+class ProjectVisibility(str, enum.Enum):
+    """Project visibility enumeration."""
+    PRIVATE = "private"
+    PUBLIC = "public"
+    TEAM = "team"
 
 
 class SimulationType(str, enum.Enum):
@@ -80,24 +87,24 @@ class Project(BaseModel):
     geometry_file: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     geometry_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     mesh_file: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    mesh_settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    mesh_settings: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Physics settings
-    physics_settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    boundary_conditions: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    initial_conditions: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    physics_settings: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
+    boundary_conditions: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
+    initial_conditions: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Solver settings
-    solver_settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    time_settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    solver_settings: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
+    time_settings: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Results
     results_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     last_simulation_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
     
     # Metadata
-    tags: Mapped[List[str]] = mapped_column(JSONB, default=list, nullable=False)
-    metadata_: Mapped[Dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+    tags: Mapped[List[str]] = mapped_column(JSONBType, default=list, nullable=False)
+    metadata_: Mapped[Dict[str, Any]] = mapped_column("metadata", JSONBType, default=dict, nullable=False)
     
     # Ownership
     owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
@@ -122,6 +129,12 @@ class Project(BaseModel):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    optimization_studies: Mapped[List["OptimizationStudy"]] = relationship(
+        "OptimizationStudy",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
     
     # Indexes
     __table_args__ = (
@@ -132,78 +145,6 @@ class Project(BaseModel):
     
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name='{self.name}', status={self.status})>"
-
-
-class SimulationStatus(str, enum.Enum):
-    """Simulation status enumeration."""
-    PENDING = "pending"
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    POST_PROCESSING = "post_processing"
-
-
-class Simulation(BaseModel):
-    """CFD Simulation run model."""
-    
-    __tablename__ = "simulations"
-    
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    
-    # Run info
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[SimulationStatus] = mapped_column(
-        Enum(SimulationStatus),
-        default=SimulationStatus.PENDING,
-        nullable=False,
-        index=True,
-    )
-    
-    # Configuration snapshot
-    config_snapshot: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    
-    # Execution
-    started_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    duration_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
-    
-    # Resources
-    cpu_cores: Mapped[int] = mapped_column(default=1, nullable=False)
-    memory_gb: Mapped[Optional[float]] = mapped_column(nullable=True)
-    gpu_enabled: Mapped[bool] = mapped_column(default=False, nullable=False)
-    
-    # Results
-    results_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    log_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    
-    # Metrics
-    convergence_data: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    performance_metrics: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    
-    # Relationships
-    project: Mapped["Project"] = relationship("Project", back_populates="simulations")
-    mesh_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        ForeignKey("meshes.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    mesh: Mapped[Optional["Mesh"]] = relationship("Mesh", back_populates="simulations")
-    
-    # Indexes
-    __table_args__ = (
-        Index("ix_simulations_project_status", "project_id", "status"),
-        Index("ix_simulations_started", "started_at"),
-    )
-    
-    def __repr__(self) -> str:
-        return f"<Simulation(id={self.id}, project_id={self.project_id}, status={self.status})>"
 
 
 class MeshType(str, enum.Enum):
@@ -262,12 +203,12 @@ class Mesh(BaseModel):
     max_skewness: Mapped[Optional[float]] = mapped_column(nullable=True)
     
     # Generation settings
-    generation_settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    generation_settings: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     generation_log: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     generation_time_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
     
     # Quality metrics
-    quality_metrics: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    quality_metrics: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Relationships
     project: Mapped["Project"] = relationship("Project", back_populates="meshes")
@@ -333,9 +274,9 @@ class Optimization(BaseModel):
     )
     
     # Parameters
-    parameters: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    objectives: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
-    constraints: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    parameters: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
+    objectives: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
+    constraints: Mapped[Dict[str, Any]] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Execution
     max_iterations: Mapped[int] = mapped_column(default=100, nullable=False)
@@ -343,10 +284,10 @@ class Optimization(BaseModel):
     population_size: Mapped[Optional[int]] = mapped_column(nullable=True)
     
     # Results
-    best_parameters: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    best_objectives: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    pareto_front: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSONB, nullable=True)
-    history: Mapped[List[Dict[str, Any]]] = mapped_column(JSONB, default=list, nullable=False)
+    best_parameters: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONBType, nullable=True)
+    best_objectives: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONBType, nullable=True)
+    pareto_front: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSONBType, nullable=True)
+    history: Mapped[List[Dict[str, Any]]] = mapped_column(JSONBType, default=list, nullable=False)
     
     # Timing
     started_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)

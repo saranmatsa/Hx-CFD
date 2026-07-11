@@ -8,10 +8,13 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import DateTime, JSON, Uuid, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, declared_attr
 from sqlalchemy.ext.asyncio import AsyncAttrs
+
+# Cross-dialect JSON type: uses JSONB on PostgreSQL, JSON on SQLite/others
+JSONBType = JSON().with_variant(JSONB(), "postgresql")
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -43,7 +46,7 @@ class UUIDMixin:
     """Mixin for UUID primary key."""
     
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        Uuid,
         primary_key=True,
         default=uuid.uuid4,
         nullable=False,

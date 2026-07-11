@@ -112,6 +112,16 @@ class Settings(BaseSettings):
     api_key_header: str = Field(default="X-API-Key", alias="API_KEY_HEADER")
     allowed_api_keys: List[str] = Field(default=[], alias="ALLOWED_API_KEYS")
     
+    # Token expiration
+    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+    
+    # Auth settings
+    allow_registration: bool = Field(default=True, alias="ALLOW_REGISTRATION")
+    require_email_verification: bool = Field(default=False, alias="REQUIRE_EMAIL_VERIFICATION")
+    max_login_attempts: int = Field(default=5, alias="MAX_LOGIN_ATTEMPTS")
+    lockout_duration_minutes: int = Field(default=15, alias="LOCKOUT_DURATION_MINUTES")
+    
     @field_validator("data_dir", "logs_dir", "projects_dir", "temp_dir", "cache_dir", mode="before")
     @classmethod
     def expand_paths(cls, v: str | Path) -> Path:

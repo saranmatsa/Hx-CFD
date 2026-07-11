@@ -8,10 +8,9 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import Enum, ForeignKey, Index, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from cfd_backend.models.base import Base, BaseModel, JSONColumn
+from cfd_backend.models.base import Base, BaseModel, JSONColumn, JSONBType
 
 
 class UserRole(str, enum.Enum):
@@ -36,7 +35,7 @@ class User(BaseModel):
     __tablename__ = "users"
     
     # Authentication
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True, index=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     
@@ -60,7 +59,7 @@ class User(BaseModel):
     )
     
     # Preferences
-    preferences: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    preferences: Mapped[dict] = mapped_column(JSONBType, default=dict, nullable=False)
     theme: Mapped[str] = mapped_column(String(50), default="system", nullable=False)
     language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
     
@@ -114,7 +113,7 @@ class APIKey(BaseModel):
     key_prefix: Mapped[str] = mapped_column(String(20), nullable=False)
     
     # Permissions
-    scopes: Mapped[List[str]] = mapped_column(JSONB, default=list, nullable=False)
+    scopes: Mapped[List[str]] = mapped_column(JSONBType, default=list, nullable=False)
     
     # Expiry
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
@@ -153,7 +152,7 @@ class UserSession(BaseModel):
     # Client info
     user_agent: Mapped[Optional[str]] = mapped_column(nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    device_info: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    device_info: Mapped[dict] = mapped_column(JSONBType, default=dict, nullable=False)
     
     # Expiry
     expires_at: Mapped[datetime] = mapped_column(nullable=False, index=True)

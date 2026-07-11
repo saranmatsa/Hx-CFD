@@ -6,7 +6,7 @@ Aggregates all API route modules.
 
 from fastapi import APIRouter
 
-from cfd_backend.api.v1 import projects, simulations, meshes, solvers, post, optimization, users, auth
+from cfd_backend.api.v1 import projects, simulations, meshes, solvers, post, optimization, users, auth, dependencies
 
 api_router = APIRouter()
 
@@ -19,3 +19,4 @@ api_router.include_router(meshes.router, prefix="/meshes", tags=["Meshes"])
 api_router.include_router(solvers.router, prefix="/solvers", tags=["Solvers"])
 api_router.include_router(post.router, prefix="/post", tags=["Post-Processing"])
 api_router.include_router(optimization.router, prefix="/optimization", tags=["Optimization"])
+api_router.include_router(dependencies.router, prefix="/dependencies", tags=["Dependencies"])

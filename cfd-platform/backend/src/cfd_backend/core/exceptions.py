@@ -201,6 +201,22 @@ class PermissionError(CFDException):
         )
 
 
+class AuthenticationError(CFDException):
+    """Authentication errors."""
+    
+    def __init__(
+        self,
+        message: str = "Authentication failed",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code="AUTHENTICATION_ERROR",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            details=details,
+        )
+
+
 class TimeoutError(CFDException):
     """Operation timeout errors."""
     
