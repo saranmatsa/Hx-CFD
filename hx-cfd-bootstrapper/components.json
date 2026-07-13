@@ -5,12 +5,12 @@
       "id": "hx-cfd-runtime",
       "name": "HX CFD Runtime",
       "version": "1.0.0",
-      "description": "Core HX CFD application runtime",
+      "description": "Core HX CFD application (Tauri shell)",
       "required": true,
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "hx-cfd-runtime-win-x64.zip",
+          "filename": "hx-cfd-runtime-win-x64.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 157286400,
           "extractTo": "."
@@ -27,7 +27,7 @@
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "hx-cfd-python-3.11.8-win-x64.zip",
+          "filename": "hx-cfd-python-3.11.8-win-x64.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 209715200,
           "extractTo": "python"
@@ -37,14 +37,14 @@
     },
     {
       "id": "openfoam-runtime",
-      "name": "OpenFOAM v11 Runtime",
-      "version": "11.0.0",
-      "description": "OpenFOAM v11 Windows runtime with MPI support",
+      "name": "OpenFOAM v10 Runtime",
+      "version": "10.0.0",
+      "description": "OpenFOAM v10 Windows runtime with MPI support",
       "required": true,
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "openfoam-v11-win-x64.zip",
+          "filename": "openfoam-v10-win-x64.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 524288000,
           "extractTo": "openfoam"
@@ -54,21 +54,21 @@
       "environmentVariables": {
         "FOAM_INST_DIR": "{INSTALL_DIR}\\openfoam",
         "WM_PROJECT_DIR": "{INSTALL_DIR}\\openfoam",
-        "WM_PROJECT_VERSION": "v11",
+        "WM_PROJECT_VERSION": "v10",
         "WM_MPLIB": "MSMPI",
         "PATH": "{INSTALL_DIR}\\openfoam\\bin;{INSTALL_DIR}\\openfoam\\wmake;{PATH}"
       }
     },
     {
       "id": "gmsh-runtime",
-      "name": "Gmsh 4.11 Runtime",
-      "version": "4.11.1",
-      "description": "Gmsh 4.11 mesh generator runtime",
+      "name": "Gmsh 4.12 Runtime",
+      "version": "4.12.0",
+      "description": "Gmsh 4.12 mesh generator runtime",
       "required": true,
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "gmsh-4.11.1-win-x64.zip",
+          "filename": "gmsh-4.12.0-win-x64.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 52428800,
           "extractTo": "gmsh"
@@ -89,7 +89,7 @@
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "paraview-5.12.0-win-x64.zip",
+          "filename": "paraview-5.12.0-win-x64.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 419430400,
           "extractTo": "paraview"
@@ -102,6 +102,112 @@
       }
     },
     {
+      "id": "freecad-runtime",
+      "name": "FreeCAD 1.0 Runtime",
+      "version": "1.0.0",
+      "description": "FreeCAD 1.0 3D CAD modeler runtime",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "freecad-1.0.0-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 314572800,
+          "extractTo": "freecad"
+        }
+      ],
+      "dependencies": [],
+      "environmentVariables": {
+        "FREECAD_PATH": "{INSTALL_DIR}\\freecad",
+        "PATH": "{INSTALL_DIR}\\freecad;{PATH}"
+      }
+    },
+    {
+      "id": "meshio-package",
+      "name": "meshio Python Package",
+      "version": "5.3.5",
+      "description": "meshio Python package for mesh I/O",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "meshio-5.3.5-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 5242880,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python"]
+    },
+    {
+      "id": "openmdao-package",
+      "name": "OpenMDAO Python Package",
+      "version": "3.37.0",
+      "description": "OpenMDAO optimization framework Python package",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "openmdao-3.37.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 15728640,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python", "meshio-package"]
+    },
+    {
+      "id": "nevergrad-package",
+      "name": "Nevergrad Python Package",
+      "version": "0.7.0",
+      "description": "Nevergrad optimization library Python package",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "nevergrad-0.7.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 5242880,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python"]
+    },
+    {
+      "id": "pyvista-package",
+      "name": "PyVista Python Package",
+      "version": "0.43.0",
+      "description": "PyVista 3D visualization Python package",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "pyvista-0.43.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 52428800,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python", "vtk-package"]
+    },
+    {
+      "id": "vtk-package",
+      "name": "VTK Python Package",
+      "version": "9.3.0",
+      "description": "VTK visualization toolkit Python package",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "vtk-9.3.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 104857600,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python"]
+    },
+    {
       "id": "hx-cfd-examples",
       "name": "HX CFD Examples",
       "version": "1.0.0",
@@ -110,7 +216,7 @@
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "hx-cfd-examples-1.0.0.zip",
+          "filename": "hx-cfd-examples-1.0.0.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 104857600,
           "extractTo": "examples"
@@ -127,13 +233,98 @@
       "platforms": ["win-x64"],
       "archives": [
         {
-          "url": "hx-cfd-docs-1.0.0.zip",
+          "filename": "hx-cfd-docs-1.0.0.zip",
           "sha256": "PLACEHOLDER_SHA256_HASH",
           "size": 52428800,
           "extractTo": "docs"
         }
       ],
       "dependencies": []
+    },
+    {
+      "id": "physicsnemo",
+      "name": "PhysicsNeMo",
+      "version": "1.0.0",
+      "description": "NVIDIA PhysicsNeMo physics-informed ML framework",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "physicsnemo-1.0.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 104857600,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python"]
+    },
+    {
+      "id": "physicsnemo-cfd",
+      "name": "PhysicsNeMo CFD",
+      "version": "1.0.0",
+      "description": "NVIDIA PhysicsNeMo CFD extensions",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "physicsnemo-cfd-1.0.0-py3-win-x64.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 104857600,
+          "extractTo": "python\\site-packages"
+        }
+      ],
+      "dependencies": ["hx-cfd-python", "physicsnemo"]
+    },
+    {
+      "id": "threejs",
+      "name": "three.js",
+      "version": "0.165.0",
+      "description": "three.js 3D graphics library",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "three.js-0.165.0.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 10485760,
+          "extractTo": "frontend\\node_modules\\three"
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "react-three-fiber",
+      "name": "react-three-fiber",
+      "version": "8.16.0",
+      "description": "react-three-fiber React renderer for three.js",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "react-three-fiber-8.16.0.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 10485760,
+          "extractTo": "frontend\\node_modules\\@react-three\\fiber"
+        }
+      ],
+      "dependencies": ["threejs"]
+    },
+    {
+      "id": "drei",
+      "name": "drei",
+      "version": "9.108.0",
+      "description": "drei useful helpers for react-three-fiber",
+      "required": true,
+      "platforms": ["win-x64"],
+      "archives": [
+        {
+          "filename": "drei-9.108.0.zip",
+          "sha256": "PLACEHOLDER_SHA256_HASH",
+          "size": 10485760,
+          "extractTo": "frontend\\node_modules\\@react-three\\drei"
+        }
+      ],
+      "dependencies": ["react-three-fiber"]
     }
   ]
 }

@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# External dependency repos (managed separately)
+FreeCAD/
+gmsh/
+drei/
+meshio/
+nevergrad/
+OpenFOAM-dev/
+OpenMDAO/
+ParaView/
+physicsnemo/
+physicsnemo-cfd/
+pyvista/
+react-three-fiber/
+three.js/
+vtk-js/
+tauri/
+
+# Build outputs
+target/
+target2/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+
+# Cache
+cache/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+*.db
+*.db-journal
+
+# Rust
+Cargo.lock
+
+# Node
+package-lock.json
+
+# OS
+*.jpeg
+*.jpg
+*.png
+*.gif
+*.log

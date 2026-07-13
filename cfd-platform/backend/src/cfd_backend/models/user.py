@@ -212,7 +212,7 @@ class ProjectMember(BaseModel):
     
     # Relationships
     project: Mapped["Project"] = relationship("Project", lazy="selectin")
-    user: Mapped["User"] = relationship("User", lazy="selectin")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
     invited_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[invited_by_id], lazy="selectin")
     
     # Indexes

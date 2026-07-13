@@ -7,6 +7,7 @@ and external service clients with proper lifecycle management.
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator, Optional
 
 import redis.asyncio as redis

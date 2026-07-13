@@ -1,0 +1,231 @@
+{
+  "installer": {
+    "name": "HX CFD",
+    "version": "1.0.0",
+    "publisher": "HX CFD",
+    "url": "https://hxcfd.com",
+    "install_root": "ProgramFiles64Folder\\HX CFD"
+  },
+  "dependencies": [
+    {
+      "id": "openfoam",
+      "name": "OpenFOAM",
+      "version": "10",
+      "filename": "openfoam-10.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\openfoam",
+      "env_vars": [
+        {"name": "OPENFOAM_DIR", "value": "{app}\\dependencies\\openfoam", "permanent": true},
+        {"name": "PATH", "value": "{app}\\dependencies\\openfoam\\platforms\\win64\\mingw\\opt\\bin", "permanent": true, "append": true}
+      ],
+      "health_check": {
+        "command": "{app}\\dependencies\\openfoam\\bin\\openfoam.exe",
+        "args": ["--version"],
+        "expected_output": "OpenFOAM-10"
+      },
+      "description": "OpenFOAM computational fluid dynamics solver"
+    },
+    {
+      "id": "gmsh",
+      "name": "Gmsh",
+      "version": "4.12.0",
+      "filename": "gmsh-4.12.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\gmsh",
+      "env_vars": [
+        {"name": "PATH", "value": "{app}\\dependencies\\gmsh\\bin", "permanent": true, "append": true}
+      ],
+      "health_check": {
+        "command": "{app}\\dependencies\\gmsh\\bin\\gmsh.exe",
+        "args": ["--version"],
+        "expected_output": "4.12"
+      },
+      "description": "Gmsh mesh generation tool"
+    },
+    {
+      "id": "freecad",
+      "name": "FreeCAD",
+      "version": "1.0.0",
+      "filename": "freecad-1.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\freecad",
+      "env_vars": [
+        {"name": "FREECAD_HOME", "value": "{app}\\dependencies\\freecad", "permanent": true},
+        {"name": "PATH", "value": "{app}\\dependencies\\freecad\\bin", "permanent": true, "append": true}
+      ],
+      "health_check": {
+        "command": "{app}\\dependencies\\freecad\\bin\\FreeCAD.exe",
+        "args": ["--version"],
+        "expected_output": "1.0"
+      },
+      "description": "FreeCAD 3D CAD modeler"
+    },
+    {
+      "id": "meshio",
+      "name": "meshio",
+      "version": "5.3.5",
+      "filename": "meshio-5.3.5.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\meshio",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "meshio",
+        "expected_output": "5.3"
+      },
+      "description": "meshio Python package for mesh I/O"
+    },
+    {
+      "id": "openmdao",
+      "name": "OpenMDAO",
+      "version": "3.37.0",
+      "filename": "openmdao-3.37.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\openmdao",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "openmdao",
+        "expected_output": "3.37"
+      },
+      "description": "OpenMDAO optimization framework"
+    },
+    {
+      "id": "nevergrad",
+      "name": "Nevergrad",
+      "version": "0.7.0",
+      "filename": "nevergrad-0.7.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\nevergrad",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "nevergrad",
+        "expected_output": "0.7"
+      },
+      "description": "Nevergrad optimization library"
+    },
+    {
+      "id": "paraview",
+      "name": "ParaView",
+      "version": "5.12.0",
+      "filename": "paraview-5.12.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\paraview",
+      "env_vars": [
+        {"name": "PARAVIEW_HOME", "value": "{app}\\dependencies\\paraview", "permanent": true},
+        {"name": "PATH", "value": "{app}\\dependencies\\paraview\\bin", "permanent": true, "append": true}
+      ],
+      "health_check": {
+        "command": "{app}\\dependencies\\paraview\\bin\\paraview.exe",
+        "args": ["--version"],
+        "expected_output": "5.12"
+      },
+      "description": "ParaView visualization tool"
+    },
+    {
+      "id": "vtk",
+      "name": "VTK",
+      "version": "9.3.0",
+      "filename": "vtk-9.3.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\vtk",
+      "env_vars": [
+        {"name": "VTK_HOME", "value": "{app}\\dependencies\\vtk", "permanent": true}
+      ],
+      "health_check": {
+        "type": "python_import",
+        "module": "vtk",
+        "expected_output": "9.3"
+      },
+      "description": "VTK visualization toolkit"
+    },
+    {
+      "id": "pyvista",
+      "name": "PyVista",
+      "version": "0.44.0",
+      "filename": "pyvista-0.44.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\pyvista",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "pyvista",
+        "expected_output": "0.44"
+      },
+      "description": "PyVista 3D visualization library"
+    },
+    {
+      "id": "physicsnemo",
+      "name": "PhysicsNeMo",
+      "version": "1.0.0",
+      "filename": "physicsnemo-1.0.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\physicsnemo",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "physicsnemo",
+        "expected_output": "1.0"
+      },
+      "description": "PhysicsNeMo framework"
+    },
+    {
+      "id": "physicsnemo-cfd",
+      "name": "PhysicsNeMo-CFD",
+      "version": "1.0.0",
+      "filename": "physicsnemo-cfd-1.0.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "dependencies\\python\\site-packages\\physicsnemo_cfd",
+      "env_vars": [],
+      "health_check": {
+        "type": "python_import",
+        "module": "physicsnemo_cfd",
+        "expected_output": "1.0"
+      },
+      "description": "PhysicsNeMo-CFD extension"
+    },
+    {
+      "id": "threejs",
+      "name": "three.js",
+      "version": "0.165.0",
+      "filename": "three.js-0.165.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "frontend\\node_modules\\three",
+      "env_vars": [],
+      "health_check": {
+        "type": "file_exists",
+        "path": "{app}\\frontend\\node_modules\\three\\build\\three.module.js"
+      },
+      "description": "three.js 3D library"
+    },
+    {
+      "id": "react-three-fiber",
+      "name": "react-three-fiber",
+      "version": "8.16.0",
+      "filename": "react-three-fiber-8.16.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "frontend\\node_modules\\@react-three\\fiber",
+      "env_vars": [],
+      "health_check": {
+        "type": "file_exists",
+        "path": "{app}\\frontend\\node_modules\\@react-three\\fiber\\dist\\index.esm.js"
+      },
+      "description": "react-three-fiber React renderer for three.js"
+    },
+    {
+      "id": "drei",
+      "name": "drei",
+      "version": "9.108.0",
+      "filename": "drei-9.108.0.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "install_path": "frontend\\node_modules\\@react-three\\drei",
+      "env_vars": [],
+      "health_check": {
+        "type": "file_exists",
+        "path": "{app}\\frontend\\node_modules\\@react-three\\drei\\dist\\index.js"
+      },
+      "description": "drei helper components for react-three-fiber"
+    }
+  ]
+}

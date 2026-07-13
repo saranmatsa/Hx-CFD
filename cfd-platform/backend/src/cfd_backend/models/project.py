@@ -107,10 +107,20 @@ class Project(BaseModel):
     metadata_: Mapped[Dict[str, Any]] = mapped_column("metadata", JSONBType, default=dict, nullable=False)
     
     # Ownership
-    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
+    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_public: Mapped[bool] = mapped_column(default=False, nullable=False)
     
     # Relationships
+    owner: Mapped[Optional["User"]] = relationship(
+        "User",
+        back_populates="owned_projects",
+        foreign_keys=[owner_id],
+        lazy="selectin",
+    )
     simulations: Mapped[List["Simulation"]] = relationship(
         "Simulation",
         back_populates="project",

@@ -47,6 +47,7 @@ dependencies = [
     "gmsh>=4.11.0",
     "nevergrad>=0.4.5",
     "openmdao>=3.30.0",
+    "bcrypt>=4.0.0",
 ]
 
 [project.optional-dependencies]

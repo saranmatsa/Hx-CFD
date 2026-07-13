@@ -207,6 +207,7 @@ async def register(
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
+    request: Request,
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db_session),
@@ -242,8 +243,8 @@ async def login(
         refresh_token=refresh_token,
         expires_at=datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes),
         last_activity_at=datetime.utcnow(),
-        user_agent=response.headers.get("user-agent"),
-        ip_address=response.client.host if response.client else None,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
     )
     db.add(session)
     

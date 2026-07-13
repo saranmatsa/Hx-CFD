@@ -97,7 +97,6 @@ class SimulationResult(BaseModel):
     # Indexes
     __table_args__ = (
         Index("ix_simulation_results_simulation_type", "simulation_id", "result_type"),
-        Index("ix_simulation_results_status", "status"),
     )
     
     def __repr__(self) -> str:

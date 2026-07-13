@@ -33,16 +33,36 @@ fn main() {
     copy_resources(&manifest_dir, &profile);
 }
 
+fn find_npm() -> PathBuf {
+    // Try portable Node.js location first
+    if let Ok(temp) = env::var("TEMP") {
+        let portable_dir = PathBuf::from(temp).join("node-portable").join("node-v22.14.0-win-x64");
+        let portable_npm_cmd = portable_dir.join("npm.cmd");
+        if portable_npm_cmd.exists() {
+            return portable_npm_cmd;
+        }
+        let portable_npm_exe = portable_dir.join("npm.exe");
+        if portable_npm_exe.exists() {
+            return portable_npm_exe;
+        }
+    }
+    // Fall back to PATH
+    PathBuf::from("npm")
+}
+
 fn build_frontend(manifest_dir: &Path) {
     let frontend_dir = manifest_dir.join("../frontend");
     let dist_dir = frontend_dir.join("dist");
 
     println!("cargo:warning=Building frontend...");
 
+    let npm_cmd = find_npm();
+    println!("cargo:warning=Using npm at: {}", npm_cmd.display());
+
     // Check if node_modules exists
     if !frontend_dir.join("node_modules").exists() {
         println!("cargo:warning=Installing frontend dependencies...");
-        let status = Command::new("npm")
+        let status = Command::new(&npm_cmd)
             .arg("ci")
             .current_dir(&frontend_dir)
             .status()
@@ -53,7 +73,7 @@ fn build_frontend(manifest_dir: &Path) {
     }
 
     // Build frontend
-    let status = Command::new("npm")
+    let status = Command::new(&npm_cmd)
         .arg("run")
         .arg("build")
         .current_dir(&frontend_dir)

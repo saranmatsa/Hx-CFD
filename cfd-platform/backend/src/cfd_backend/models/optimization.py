@@ -174,7 +174,10 @@ class OptimizationTrial(BaseModel):
     intermediate_values: Mapped[List[Dict[str, Any]]] = mapped_column(JSONBType, default=list, nullable=False)
     
     # Execution
-    simulation_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
+    simulation_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("simulations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     started_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     duration_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
@@ -188,6 +191,11 @@ class OptimizationTrial(BaseModel):
     
     # Relationships
     study: Mapped["OptimizationStudy"] = relationship("OptimizationStudy", back_populates="trials")
+    simulation: Mapped[Optional["Simulation"]] = relationship(
+        "Simulation",
+        back_populates="optimization_trials",
+        lazy="selectin",
+    )
     
     # Indexes
     __table_args__ = (

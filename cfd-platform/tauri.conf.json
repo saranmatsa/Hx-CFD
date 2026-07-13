@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CFD Platform",
+  "productName": "HX CFD",
   "version": "1.0.0",
-  "identifier": "com.cfd.platform",
+  "identifier": "com.hxcfd.app",
   "build": {
     "beforeDevCommand": "npm run build:frontend",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "CFD Platform",
+        "title": "HX CFD",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,
@@ -41,12 +41,10 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "bin/backend/**/*",
-      "bin/backend_deps/**/*"
+      "bin/backend/**/*"
     ],
     "externalBin": [
-      "bin/backend/cfd-backend",
-      "bin/backend/cfd-backend.exe"
+      "bin/backend/hx-cfd-backend.exe"
     ],
     "windows": {
       "certificateThumbprint": null,
@@ -56,10 +54,7 @@
         "type": "embedBootstrapper"
       },
       "allowDowngrades": false,
-      "wix": {
-        "language": "en-US",
-        "template": "wix/main.wxs"
-      }
+      "wix": null
     },
     "macOS": {
       "entitlements": "entitlements.plist",
@@ -96,50 +91,56 @@
   },
   "plugins": {
     "shell": {
-      "all": true,
+      "all": false,
       "open": true,
       "scope": {
         "allowlist": [
           {
             "name": "backend",
-            "cmd": "bin/backend/cfd-backend",
-            "args": ["--help"]
+            "cmd": "bin/backend/hx-cfd-backend",
+            "args": true
           },
           {
-            "name": "python",
-            "cmd": "python",
-            "args": ["-c", "import sys; print(sys.version)"]
+            "name": "openfoam",
+            "cmd": "dependencies/openfoam/bin/foamExec",
+            "args": true
           },
           {
-            "name": "pip",
-            "cmd": "pip",
-            "args": ["--version"]
+            "name": "gmsh",
+            "cmd": "dependencies/gmsh/bin/gmsh",
+            "args": true
+          },
+          {
+            "name": "paraview",
+            "cmd": "dependencies/paraview/bin/paraview",
+            "args": true
           }
         ]
       }
     },
     "process": {
-      "all": true,
+      "all": false,
       "scope": {
         "allowlist": [
-          "backend",
-          "python",
-          "pip"
+          "backend"
         ]
       }
     },
     "fs": {
-      "all": true,
+      "all": false,
       "scope": {
         "allowlist": [
           {
-            "path": "$APPDATA/cfd-platform/**"
+            "path": "$APPDATA/hx-cfd/**"
           },
           {
-            "path": "$HOME/.cfd-platform/**"
+            "path": "$HOME/.hx-cfd/**"
           },
           {
-            "path": "$TEMP/cfd/**"
+            "path": "$TEMP/hx-cfd/**"
+          },
+          {
+            "path": "dependencies/**"
           }
         ]
       }
