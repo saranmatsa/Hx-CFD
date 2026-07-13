@@ -1,82 +1,378 @@
-# CFD Platform
+# HX CFD Platform
 
-**A web-based workflow platform for computational fluid dynamics: upload CAD models, generate meshes, run simulations, and visualize results—all from a single interface.**
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Rust 1.70+](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue.svg)](https://www.typescriptlang.org/)
+
+**A unified desktop and web-based platform for computational fluid dynamics: upload CAD models, generate meshes, run simulations, and visualize results—all without leaving your application.**
 
 ---
 
 ## The Problem
 
-CFD workflows typically require juggling multiple disconnected tools:
+Traditional CFD workflows fragment work across multiple disconnected tools:
 
-- Export geometry from CAD software
-- Manually configure mesh generation parameters in Gmsh or similar
-- Set up case files and boundary conditions for OpenFOAM
-- Run simulations from the command line
-- Export results to separate visualization software
-- Repeat iterations manually when parameters change
+- Export geometry from CAD software (FreeCAD, SolidWorks, Fusion 360)
+- Manually configure mesh parameters in Gmsh
+- Edit OpenFOAM case files and boundary conditions by hand
+- Execute simulations from command-line terminals
+- Export results to external visualization software (ParaView)
+- Repeat iterations when parameters change, re-doing setup each time
 
-This fragmentation means context-switching between applications, manual file transfers, and difficulty reproducing or sharing workflows across a team.
+This context-switching creates friction, introduces errors, makes workflows hard to reproduce, and prevents team collaboration on parameter studies.
 
 ---
 
 ## The Solution
 
-CFD Platform provides a unified web interface that connects your CAD-to-results workflow:
+HX CFD Platform provides a unified desktop application that connects your entire CAD-to-results workflow:
 
-- **No command-line required** — configure and run simulations through a browser
-- **Automatic mesh generation** — upload STEP/IGES files, specify element sizing, generate meshes without opening separate software
-- **Real-time progress tracking** — monitor simulation status and residuals as jobs run
-- **Integrated visualization** — view scalar and vector fields without exporting to external tools
-- **Project organization** — manage geometries, meshes, simulations, and results in structured projects
+- **No command-line required** — Configure and run simulations through an intuitive desktop interface
+- **Automatic mesh generation** — Upload STEP/IGES files, specify element sizing, generate meshes instantly
+- **Integrated simulation execution** — Run OpenFOAM solvers with form-based configuration
+- **Built-in visualization** — View scalar and vector fields in 3D without exporting
+- **Project organization** — Manage geometries, meshes, simulations, and results in structured workspaces
+- **Dependency management** — Automatic detection and installation of required tools
 
 ---
 
 ## Key Features
 
-### Mesh Generation from CAD Files
-Upload STEP or IGES geometry files directly. Configure element size, growth rate, and boundary layer settings through the interface. Generate meshes without leaving the browser.
+### ✅ Implemented
 
-### Simulation Execution
-Run OpenFOAM solvers (simpleFoam, pimpleFoam, interFoam, and others) with configurable turbulence models. Set up cases through form-based inputs rather than editing text files manually.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **CAD Import** | Available | STEP, IGES, and other supported formats via FreeCAD |
+| **Mesh Generation** | Available | Gmsh integration with configurable element size, growth rate, and boundary layers |
+| **OpenFOAM Integration** | Available | Supports simpleFoam, pimpleFoam, interFoam, rhoCentralFoam, dnsFoam |
+| **Turbulence Models** | Available | kEpsilon, kOmega, SpalartAllmaras, LES models |
+| **Results Visualization** | Available | Scalar and vector field extraction via VTK with interactive 3D viewer |
+| **Project Management** | Available | Organize geometries, meshes, simulations, results; track iterations |
+| **Desktop Application** | Available | Tauri-based native desktop app (Windows, macOS, Linux) |
+| **Backend API** | Available | FastAPI REST service for programmatic access |
+| **Backend Process Management** | Available | Automatic startup, monitoring, and lifecycle management |
+| **System Information** | Available | CPU, memory, OS detection for dependency verification |
 
-### Results Visualization
-View pressure, velocity, and other scalar fields directly in the browser. Extract vector fields and examine results without exporting to ParaView or other visualization tools.
+### ⚠️ Experimental
 
-### Pipeline Automation
-Chain mesh generation, simulation, and visualization steps into automated pipelines. Upload a CAD file, specify configuration, and receive results when the pipeline completes.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **AI-Assisted Configuration** | Experimental | Multi-provider support (OpenAI, Anthropic, Groq, Ollama, LM Studio, NVIDIA NIM, Google Gemini, OpenRouter); configuration validated but not production-tested |
+| **Optimization Workflows** | Experimental | Nevergrad and OpenMDAO integrations present; endpoints return placeholder responses |
 
-### Project Management
-Organize work into projects containing geometries, meshes, simulations, and results. Track iterations and compare outcomes across parameter studies.
+### 📋 Planned
 
-### Multi-Provider AI Configuration
-Connect to NVIDIA NIM, OpenAI, Anthropic, Ollama, LM Studio, Groq, Google Gemini, or OpenRouter for AI-assisted parameter configuration. *(AI integration is experimental—see Project Status below.)*
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Advanced Visualization** | Planned | Enhanced 3D rendering, field animations, streamlines |
+| **Parameter Studies** | Planned | Batch simulation across parameter ranges with comparison |
+| **Results Comparison** | Planned | Side-by-side visual and numerical comparison of multiple runs |
+| **Multi-User Collaboration** | Planned | Team workspaces, shared projects, concurrent editing |
+| **Cloud Integration** | Planned | Distributed job submission and data storage |
 
 ---
 
-## Example Workflow
+## System Architecture
 
-1. **Create a project** named "Airfoil Analysis"
-2. **Upload** a STEP file containing your geometry
-3. **Configure mesh** — set element size to 0.01m, enable boundary layers with 3 layers
-4. **Create a simulation** — select simpleFoam solver with k-epsilon turbulence model
-5. **Start the pipeline** — the platform generates the mesh, runs the simulation, and extracts results
-6. **View results** — examine pressure distribution and velocity fields in the built-in viewer
-7. **Iterate** — adjust parameters and re-run without re-uploading geometry
+### Desktop Application Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│         HX CFD Desktop Application (Tauri)           │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │   Frontend (React + TypeScript + Three.js)     │  │
+│  │   • Project dashboard                          │  │
+│  │   • CAD import interface                        │  │
+│  │   • Mesh configuration UI                       │  │
+│  │   • Simulation setup forms                      │  │
+│  │   • 3D results viewer                           │  │
+│  └────────────────────────────────────────────────┘  │
+│                        ↓                              │
+│  ┌────────────────────────────────────────────────┐  │
+│  │   Tauri Bridge (Rust)                          │  │
+│  │   • Backend process lifecycle management       │  │
+│  │   • System resource detection                  │  │
+│  │   • File system operations                     │  │
+│  │   • Logging and monitoring                     │  │
+│  └────────────────────────────────────────────────┘  │
+│                        ↓                              │
+└──────────────────────────────────────────────────────┘
+                         ↓
+┌──────────────────────────────────────────────────────┐
+│     CFD Backend (Python FastAPI Sidecar)             │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌────────────────────────��───────────────────────┐  │
+│  │   REST API (FastAPI)                           │  │
+│  │   • Projects and workspace management          │  │
+│  │   • Geometry and mesh operations               │  │
+│  │   • Simulation execution and monitoring        │  │
+│  │   • Results retrieval and export               │  │
+│  │   • Health checks and status                   │  │
+│  └────────────────────────────────────────────────┘  │
+│                        ↓                              │
+│  ┌────────────────────────────────────────────────┐  │
+│  │   Service Layer                                │  │
+│  │   • MeshService: Gmsh integration              │  │
+│  │   • SimulationService: OpenFOAM orchestration  │  │
+│  │   • OptimizationService: Nevergrad/OpenMDAO   │  │
+│  │   • VisualizationService: VTK post-processing │  │
+│  │   • AIService: LLM provider integrations       │  │
+│  └────────────────────────────────────────────────┘  │
+│                        ↓                              │
+│  ┌────────────────────────────────────────────────┐  │
+│  │   External Tools                               │  │
+│  │   • OpenFOAM: CFD simulation solver            │  │
+│  │   • Gmsh: 3D mesh generation                   │  │
+│  │   • FreeCAD: CAD model import                  │  │
+│  │   • ParaView: Visualization (optional)         │  │
+│  │   • Python Scientific Stack: Compute           │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+### Component Breakdown
+
+#### Frontend (React + TypeScript)
+- **Framework**: React 18+ with TypeScript
+- **3D Graphics**: Three.js with react-three-fiber for WebGL rendering
+- **State Management**: Zustand for client state, TanStack Query for server state
+- **Build Tool**: Vite for fast development and optimized production builds
+- **Visualization**: VTK.js for scientific visualization
+
+#### Desktop Layer (Tauri 2)
+- **Purpose**: Provide native OS integration without Electron bloat
+- **Responsibilities**:
+  - Backend process lifecycle (spawn, monitor, restart, shutdown)
+  - System information detection (OS, CPU, memory, architecture)
+  - File system operations with security sandboxing
+  - Logging and event forwarding from backend to frontend
+  - Dialog boxes and notifications
+
+#### Backend (Python FastAPI)
+- **Framework**: FastAPI with async/await for high-concurrency I/O
+- **Database**: SQLAlchemy 2.0 ORM with Alembic migrations; SQLite or PostgreSQL
+- **Task Queue**: Celery with Redis for async job execution
+- **Logging**: Structlog with rich formatting
+- **Validation**: Pydantic v2 for strict type validation
+
+#### Services
+- **MeshService**: Wraps Gmsh Python API for mesh generation
+- **SimulationService**: Orchestrates OpenFOAM via subprocess, monitors execution
+- **OptimizationService**: Provides optimization endpoints using Nevergrad and OpenMDAO
+- **VisualizationService**: Extracts VTK-compatible data from simulation results
+
+#### External CFD Tools
+- **OpenFOAM**: Industry-standard open-source CFD solver
+- **Gmsh**: Automatic 3D finite element mesh generator
+- **FreeCAD**: CAD model import and parameter editing
+- **ParaView**: Visualization support (optional, for advanced workflows)
 
 ---
 
-## Quick Start
+## Technology Stack
+
+### Frontend
+
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| React | 18+ | UI framework |
+| TypeScript | 5.0+ | Type-safe JavaScript |
+| Vite | 5.0+ | Build tool and dev server |
+| Three.js | Latest | 3D graphics engine |
+| react-three-fiber | Latest | React renderer for Three.js |
+| VTK.js | Latest | Scientific visualization |
+| Zustand | Latest | Lightweight state management |
+| TanStack Query | v5+ | Server state management |
+| TailwindCSS | Latest | Utility-first CSS framework |
+
+### Desktop (Tauri)
+
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| Tauri | 2.0+ | Desktop application framework |
+| Rust | 1.70+ | System-level operations |
+| Tokio | 1.30+ | Async runtime |
+| Serde | 1.0+ | Serialization |
+
+### Backend
+
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| Python | 3.10+ | Core language |
+| FastAPI | 0.109+ | REST API framework |
+| Uvicorn | 0.27+ | ASGI server |
+| Pydantic | 2.5+ | Data validation |
+| SQLAlchemy | 2.0+ | ORM |
+| Alembic | 1.13+ | Database migrations |
+| Celery | 5.3+ | Async task queue |
+| Redis | 5.0+ | Message broker and cache |
+| NumPy | 1.26+ | Numerical computing |
+| SciPy | 1.12+ | Scientific algorithms |
+| Pandas | 2.1+ | Data manipulation |
+
+### CFD Tools
+
+| Tool | Purpose | License |
+|------|---------|---------|
+| OpenFOAM | CFD solver | GPL-3.0 |
+| Gmsh | Mesh generation | GPL-3.0 |
+| FreeCAD | CAD import | LGPL-2.1 |
+| ParaView | Visualization | BSD-3-Clause |
+
+### Scientific Libraries
+
+| Library | Purpose |
+|---------|---------|
+| Meshio | Mesh I/O and format conversion |
+| PyVista | 3D data structures and visualization |
+| Trimesh | 3D geometry processing |
+| VTK | Scientific visualization |
+| Nevergrad | Gradient-free optimization |
+| OpenMDAO | Multidisciplinary design optimization |
+| PhysicsNeMo | NVIDIA physics simulation framework |
+
+---
+
+## Repository Structure
+
+```
+HXCFD/
+├── README.md                          # This file
+├── LICENSE                            # GPL-3.0 license
+├── NOTICE                             # Copyright and attribution
+├── THIRD_PARTY_LICENCES.md            # Third-party software licenses
+├── sonar-project.properties           # SonarQube configuration
+│
+├── cfd-platform/                      # Main application
+│   ├── Cargo.toml                     # Rust dependencies (Tauri)
+│   ├── tauri.conf.json                # Tauri application configuration
+│   ├── build.py                       # Python backend build script
+│   ├── build.rs                       # Rust build script
+│   ├── backend.spec                   # PyInstaller specification
+│   │
+│   ├── src/                           # Tauri frontend (Rust)
+│   │   ├── main.rs                    # Application entry point
+│   │   ├── backend.rs                 # Backend process manager
+│   │   └── commands.rs                # IPC commands
+│   │
+│   ├── backend/                       # FastAPI backend (Python)
+│   │   ├── pyproject.toml             # Python dependencies
+│   │   ├── src/cfd_backend/
+│   │   │   ├── main.py                # FastAPI app entry point
+│   │   │   ├── database.py            # Database configuration
+│   │   │   ├── api/
+│   │   │   │   └── v1/
+│   │   │   │       ├── projects.py    # Project endpoints
+│   │   │   │       ├── meshes.py      # Mesh endpoints
+│   │   │   │       ├── simulations.py # Simulation endpoints
+│   │   │   │       ├── optimization.py# Optimization endpoints
+│   │   │   │       └── visualize.py   # Visualization endpoints
+│   │   │   ├── models/
+│   │   │   │   ├── base.py            # Base SQLAlchemy models
+│   │   │   │   ├── project.py         # Project models
+│   │   │   │   ├── mesh.py            # Mesh models
+│   │   │   │   ├── simulation.py      # Simulation models
+│   │   │   │   └── user.py            # User/auth models
+│   │   │   ├── services/
+│   │   │   │   ├── mesh_service.py    # Mesh generation service
+│   │   │   │   ├── simulation_service.py # CFD execution
+│   │   │   │   ├── optimization_service.py# Optimization
+│   │   │   │   └── dependencies.py    # Service container
+│   │   │   └── core/
+│   │   │       ├── config.py          # Settings and configuration
+│   │   │       ├── exceptions.py      # Custom exceptions
+│   │   │       └── logging.py         # Logging setup
+│   │   └── tests/
+│   │
+│   ├── frontend/                      # React application (TypeScript)
+│   │   ├── package.json               # Node dependencies
+│   │   ├── src/
+│   │   │   ├── main.tsx               # Frontend entry point
+│   │   │   ├── App.tsx                # Root component
+│   │   │   ├── pages/                 # Route components
+│   │   │   ├── components/            # Reusable UI components
+│   │   │   ├── hooks/                 # Custom React hooks
+│   │   │   ├── services/              # API client services
+│   │   │   ├── store/                 # Zustand stores
+│   │   │   └── utils/                 # Helper functions
+│   │   └── dist/                      # Production build output
+│   │
+│   └── icons/                         # Application icons
+│       ├── 32x32.png
+│       ├── 128x128.png
+│       ├── icon.icns                  # macOS icon
+│       └── icon.ico                   # Windows icon
+│
+├── hx-cfd-bootstrapper/               # Windows installer (.NET/WPF)
+│   ├── HxCfdBootstrapper.csproj       # C# project file
+│   ├── appsettings.json               # Configuration
+│   ├── components.json                # Component registry
+│   └── src/
+│       ├── App.xaml                   # Application root
+│       ├── MainWindow.xaml            # Main UI window
+│       ├── Models/                    # Data models
+│       ├── Services/                  # Business logic
+│       ├── ViewModels/                # MVVM view models
+│       └── Converters/                # XAML value converters
+│
+└── [submodule references]
+    ├── OpenFOAM                       # External CFD solver
+    ├── Gmsh                           # Mesh generation tool
+    ├── FreeCAD                        # CAD software
+    ├── ParaView                       # Visualization tool
+    ├── OpenMDAO                       # Optimization framework
+    ├── Nevergrad                      # Gradient-free optimization
+    └── [others...]
+```
+
+---
+
+## Installation
+
+### System Requirements
+
+- **OS**: Windows 10+, macOS 10.13+, or Linux (Ubuntu 20.04+)
+- **Python**: 3.10 or later
+- **Memory**: 4 GB minimum (8 GB recommended)
+- **Disk Space**: 10 GB for tools and dependencies
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 18+
-- PostgreSQL 14+ (SQLite works for development)
-- Redis 6+
-- OpenFOAM installed and `OPENFOAM_DIR` environment variable set
-- Gmsh installed and `GMSH_BIN` environment variable set
+1. **Python 3.10+**
+   ```bash
+   python --version  # Windows
+   python3 --version # macOS/Linux
+   ```
 
-### Run with Docker Compose
+2. **Node.js 18+** (for frontend development)
+   ```bash
+   node --version
+   npm --version
+   ```
+
+3. **Rust 1.70+** (for building desktop app)
+   ```bash
+   rustc --version
+   cargo --version
+   ```
+
+4. **OpenFOAM** (installed and `OPENFOAM_DIR` environment variable set)
+   ```bash
+   source $OPENFOAM_DIR/etc/bashrc  # Linux/macOS
+   # or set OPENFOAM_DIR environment variable on Windows
+   ```
+
+5. **Gmsh** (installed and `GMSH_BIN` environment variable set)
+   ```bash
+   gmsh --version
+   ```
+
+### Quick Start with Docker
 
 ```bash
 cd cfd-platform
@@ -85,19 +381,62 @@ docker-compose up -d
 
 Access the web interface at `http://localhost:3000`.
 
-### Run Locally
+### Build Desktop Application
 
-**Backend:**
+#### Development Build
 
 ```bash
 cd cfd-platform
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8000
+npm install                    # Install dependencies
+cargo tauri dev                # Run in development mode
 ```
 
-**Frontend:**
+The application will launch with hot-reloading enabled.
+
+#### Production Build
+
+```bash
+cd cfd-platform
+cargo tauri build              # Build optimized binary
+```
+
+Output locations:
+- **Windows**: `src-tauri/target/release/`
+- **macOS**: `src-tauri/target/release/bundle/dmg/`
+- **Linux**: `src-tauri/target/release/bundle/appimage/`
+
+### Run Backend Locally
+
+**Setup virtual environment:**
+```bash
+cd cfd-platform/backend
+python -m venv venv
+
+# Windows
+.\venv\Scripts\activate
+
+# macOS/Linux
+source venv/bin/activate
+```
+
+**Install dependencies:**
+```bash
+pip install -e ".[dev]"
+```
+
+**Run database migrations:**
+```bash
+alembic upgrade head
+```
+
+**Start development server:**
+```bash
+cfd-backend-dev
+# Or with auto-reload:
+uvicorn cfd_backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Run Frontend Development Server
 
 ```bash
 cd cfd-platform/frontend
@@ -105,255 +444,424 @@ npm install
 npm run dev
 ```
 
-Access the web interface at `http://localhost:5173`.
+Access at `http://localhost:5173` (Vite dev server).
 
 ---
 
-## Installation
+## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in `cfd-platform/` with:
+Create `.env` in `cfd-platform/backend/`:
 
 ```bash
+# API Configuration
+DEBUG=false
+HOST=0.0.0.0
+PORT=8000
+WORKERS=4
+
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/cfddb
-# Or for development:
+DATABASE_URL=postgresql://user:password@localhost:5432/cfddb
+# For development with SQLite:
 # DATABASE_URL=sqlite:///./cfd.db
 
 # External Tools
-OPENFOAM_DIR=/path/to/OpenFOAM
-GMSH_BIN=/path/to/gmsh
-FREECAD_BIN=/path/to/freecad
+OPENFOAM_DIR=/opt/openfoam
+GMSH_BIN=/usr/bin/gmsh
+FREECAD_BIN=/usr/bin/freecad
 
-# Optional: AI Provider API Keys
-NIM_API_KEY=
+# Redis (for task queue)
+REDIS_URL=redis://localhost:6379/0
+
+# CORS
+CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
+
+# AI Provider API Keys (optional)
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GROQ_API_KEY=
 GEMINI_API_KEY=
+NIM_API_KEY=
 ```
 
 ### Database Setup
 
+PostgreSQL (production):
 ```bash
-cd cfd-platform
+createdb cfddb
 alembic upgrade head
 ```
 
-### Frontend Configuration
-
+SQLite (development):
 ```bash
-cd cfd-platform/frontend
-cp .env.example .env  # Configure API endpoint if not running locally
+alembic upgrade head  # Creates ./cfd.db
 ```
 
 ---
 
 ## Usage
 
-### Web Interface
+### Desktop Application Workflow
 
-1. **Dashboard** — Overview of projects and recent activity
-2. **Projects** — Create and manage project workspaces
-3. **Upload** — Drag-and-drop CAD files (STEP, IGES)
-4. **Simulations** — Configure and launch simulation runs
-5. **Pipeline** — Monitor automated workflow execution
-6. **Settings** — Configure AI providers and system dependencies
+1. **Launch the application** — Open HX CFD from your applications menu
+2. **Create a project** — Name your workspace (e.g., "Airfoil Analysis 2024")
+3. **Import CAD geometry** — Drag-and-drop STEP/IGES files or use file browser
+4. **Configure mesh** — Set element size, growth rate, boundary layer parameters
+5. **Create simulation** — Select OpenFOAM solver, set boundary conditions via forms
+6. **Execute pipeline** — Click "Run" to generate mesh and execute simulation
+7. **View results** — Inspect pressure, velocity fields in 3D viewer
+8. **Export data** — Save results as VTK, CSV, or scientific image formats
 
-### API Access
-
-The backend exposes a REST API at `/api/v1/`. Authenticate with JWT tokens:
+### API Usage (Programmatic Access)
 
 ```bash
-# Login
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "user", "password": "pass"}'
+# Get API documentation
+curl http://localhost:8000/docs
 
-# Create project
+# List projects
+curl http://localhost:8000/api/v1/projects
+
+# Create new project
 curl -X POST http://localhost:8000/api/v1/projects \
-  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Test Project"}'
+  -d '{"name": "Test Project", "description": "My CFD study"}'
 
-# Start pipeline
-curl -X POST http://localhost:8000/api/v1/pipeline/start \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@geometry.step" \
-  -F "project_id=<uuid>" \
-  -F "config={\"element_size\": 0.1, \"solver\": \"simpleFoam\"}"
+# Start mesh generation
+curl -X POST http://localhost:8000/api/v1/meshes/generate \
+  -F "geometry=@airfoil.step" \
+  -F "config={\"element_size\": 0.01}"
+
+# Monitor simulation
+curl http://localhost:8000/api/v1/simulations/{sim_id}/status
+
+# Get results
+curl http://localhost:8000/api/v1/simulations/{sim_id}/results \
+  > results.vtu
 ```
 
 ---
 
-## Supported Workflows
-### Available
+## Desktop Architecture Details
 
-| Workflow | Status | Notes |
-|----------|--------|-------|
-| CAD file upload (STEP, IGES) | Available | Drag-and-drop interface |
-| Mesh generation (Gmsh) | Available | Configurable element size, growth rate, boundary layers |
-| OpenFOAM simulation | Available | Supports simpleFoam, pimpleFoam, interFoam, rhoCentralFoam, dnsFoam |
-| Turbulence models | Available | kEpsilon, kOmega, SpalartAllmaras, LES models |
-| Results visualization | Available | Scalar and vector field extraction via VTK |
-| Pipeline automation | Available | End-to-end CAD-to-results workflow |
-| Project management | Available | Organize geometries, meshes, simulations |
-| Multi-user access | Available | JWT authentication |
+### Backend Lifecycle Management
 
-### Experimental
+The Tauri bridge (`src/backend.rs`) manages the Python FastAPI backend:
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| AI-assisted configuration | Experimental | Connects to LLM providers; not fully validated |
-| Optimization workflows | Experimental | Endpoints exist but return placeholder data |
+1. **Auto-Start on Launch**
+   - Detects backend executable (PyInstaller-built or Python script)
+   - Configures Python environment (PYTHONPATH, unbuffered output)
+   - Spawns process with stdout/stderr capture
 
-### Planned
+2. **Log Forwarding**
+   - Captures backend logs in real-time
+   - Forwards to frontend for display
+   - Maintains rolling buffer (1000 latest entries)
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Advanced visualization | Planned | Enhanced 3D rendering and animation |
-| Parameter studies | Planned | Batch simulation across parameter ranges |
-| Results comparison | Planned | Side-by-side comparison of simulation results |
+3. **Health Monitoring**
+   - Periodically pings `/api/health` endpoint
+   - Updates frontend with backend status
+   - Auto-restarts on crash (configurable)
+
+4. **Graceful Shutdown**
+   - Catches window close request
+   - Sends SIGTERM to backend
+   - Waits up to 10 seconds for clean shutdown
+   - Force-kills if timeout exceeded
+
+### Process Models
+
+**Development Mode** (auto-reload):
+```
+Tauri Window → Backend Script (main.py) → Uvicorn Server
+```
+
+**Production Mode** (bundled executable):
+```
+Tauri Window → PyInstaller Executable (cfd-backend) → Uvicorn Server
+```
+
+### Local Services
+
+When running locally or in development:
+
+- **Frontend**: Vite dev server on `http://localhost:5173`
+- **Backend**: Uvicorn on `http://localhost:8000`
+- **Database**: SQLite in `./cfd.db` or PostgreSQL at configured URL
+- **Redis**: Optional, for Celery task queue
+- **Tauri IPC Bridge**: Enables Rust↔Frontend communication
 
 ---
 
-## Project Status
+## Development
 
-CFD Platform is under active development. Core mesh generation, simulation, and visualization workflows are functional. AI-assisted features and optimization workflows are experimental.
+### Prerequisites for Contributors
 
-**Known limitations:**
+- Rust toolchain (`rustup`)
+- Python 3.10+ with pip and venv
+- Node.js 18+ with npm
+- Git
 
-- Optimization endpoints return placeholder responses
-- AI provider integration is configured but not fully validated in production use
-- FreeCAD and ParaView integrations are present in configuration but not actively used in the pipeline
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone https://github.com/saranmatsa/HXCFD.git
+cd HXCFD
+
+# Backend setup
+cd cfd-platform/backend
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+pip install -e ".[dev]"
+
+# Frontend setup
+cd ../frontend
+npm install
+
+# Tauri setup (Rust)
+cd ..
+cargo build
+```
+
+### Running Tests
+
+**Backend tests:**
+```bash
+cd cfd-platform/backend
+pytest                      # All tests
+pytest -v                   # Verbose
+pytest --cov=src           # With coverage
+pytest tests/test_mesh_service.py  # Single file
+```
+
+**Frontend tests:**
+```bash
+cd cfd-platform/frontend
+npm run test
+npm run test:coverage
+```
+
+**Rust tests:**
+```bash
+cd cfd-platform
+cargo test
+```
+
+### Code Quality
+
+**Backend formatting and linting:**
+```bash
+cd cfd-platform/backend
+black src/                  # Format
+ruff check src/             # Lint
+mypy src/                   # Type check
+isort src/                  # Sort imports
+```
+
+**Frontend formatting:**
+```bash
+cd cfd-platform/frontend
+npm run lint
+npm run format
+```
+
+### Building Documentation
+
+```bash
+cd cfd-platform/backend
+pip install -e ".[docs]"
+mkdocs serve
+# Visit http://localhost:8000
+```
 
 ---
 
-## Documentation
+## Known Limitations
 
-- [Quick Start Guide](cfd-platform/QUICKSTART.md)
-- [Architecture Overview](cfd-platform/ARCHITECTURE.md)
-- [Contributing Guidelines](cfd-platform/CONTRIBUTING.md)
-- [Engineering Audit](cfd-platform/ENGINEERING_AUDIT.md)
+- **Optimization endpoints**: Return placeholder responses; optimization framework integration is not yet production-ready
+- **AI features**: Configuration present but not validated in production workflows
+- **Team collaboration**: Single-user only; multi-user support planned for future release
+- **Large meshes**: Performance may degrade with meshes >10M elements; streaming visualization planned
+- **ParaView integration**: Present in configuration but not actively used in current pipeline
+
+---
+
+## Roadmap
+
+### Short-term (Next Release)
+
+- [ ] Stabilize optimization service implementation
+- [ ] Add parameter study batch execution
+- [ ] Improve error messages and validation feedback
+- [ ] Performance optimization for large mesh visualization
+- [ ] Documentation improvements
+
+### Mid-term
+
+- [ ] Multi-user collaboration and team workspaces
+- [ ] Cloud job submission and distributed execution
+- [ ] Results comparison and side-by-side analysis
+- [ ] Advanced visualization (streamlines, field animations)
+- [ ] Support for additional CFD solvers
+
+### Long-term
+
+- [ ] Web-based portal for remote access
+- [ ] Machine learning-assisted parameter optimization
+- [ ] Integration with commercial CAD software
+- [ ] High-performance computing cluster support
+- [ ] Real-time collaborative editing
 
 ---
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](cfd-platform/CONTRIBUTING.md) for guidelines on code style, testing, and pull request process.
+Contributions are welcome. Please follow these guidelines:
 
-Key areas for contribution:
+### Code Style
 
-- Visualization improvements
-- Additional solver support
-- AI integration validation
-- Documentation
+- **Python**: Follow PEP 8; use Black formatter, Ruff linter
+- **Rust**: Use `cargo fmt` and `clippy`
+- **TypeScript**: Use ESLint and Prettier
+- **Commits**: Use conventional commits (`feat:`, `fix:`, `docs:`, etc.)
+
+### Contribution Process
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Make changes and add tests
+4. Run linters and tests locally
+5. Commit with descriptive messages
+6. Push to your fork
+7. Open a Pull Request
+
+### Areas for Contribution
+
+- Mesh visualization improvements
+- Additional OpenFOAM solver support
+- Performance optimization
+- Documentation and tutorials
+- Bug fixes and issue resolution
+
+---
+
+## Troubleshooting
+
+### Backend fails to start
+
+**Symptoms**: "Backend not found" or "Python not found" errors
+
+**Solutions**:
+- Verify Python 3.10+ is installed and in PATH
+- Set `PYTHONPATH` environment variable if using development mode
+- Run with `CFD_BACKEND_DEBUG=1` for detailed logs
+
+### OpenFOAM not detected
+
+**Solutions**:
+- Ensure OpenFOAM is installed
+- Set `OPENFOAM_DIR` environment variable
+- Verify `$OPENFOAM_DIR/etc/bashrc` exists
+
+### Mesh generation timeout
+
+**Solutions**:
+- Reduce element size or mesh complexity
+- Increase available disk space
+- Check `TEMP` directory has >5 GB free
+
+### High memory usage
+
+**Solutions**:
+- Reduce mesh resolution
+- Disable visualization during simulation
+- Close other applications
+- Increase system RAM if needed
 
 ---
 
 ## License
 
-See [LICE# Prompt: Implement Automatic Dependency Installation
+This project is licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE) for details.
 
-Act as a Principal Software Architect, DevOps Engineer, and Platform Engineer.
+**Summary**: You are free to use, modify, and distribute this software under the terms of GPL-3.0. Any modifications or derived works must also be licensed under GPL-3.0.
 
-Implement a complete dependency installation and management system for this application.
+### Third-Party Licenses
 
-## Goal
+This project integrates several open-source projects:
 
-A new user should be able to clone the repository, run the setup process once, and have every required dependency automatically installed and configured.
+| Project | License | Purpose |
+|---------|---------|---------|
+| OpenFOAM | GPL-3.0 | CFD simulation engine |
+| Gmsh | GPL-3.0 | Mesh generation |
+| FreeCAD | LGPL-2.1 | CAD model import |
+| ParaView | BSD-3-Clause | Visualization toolkit |
+| FastAPI | MIT | REST API framework |
+| React | MIT | UI framework |
+| Tauri | MIT/Apache-2.0 | Desktop framework |
+| NumPy | BSD-3-Clause | Scientific computing |
+| Pandas | BSD-3-Clause | Data analysis |
+| OpenMDAO | Apache-2.0 | Optimization framework |
+| Nevergrad | MIT | Gradient-free optimization |
 
-The user should never need to manually search for downloads, clone third-party repositories, or configure paths.
+See [THIRD_PARTY_LICENCES.md](THIRD_PARTY_LICENCES.md) for complete attribution and license texts.
 
-## Dependencies to Manage
+---
 
-The installer must support the following external software:
+## Acknowledgements
 
-* OpenFOAM
-* Gmsh
-* FreeCAD
-* ParaView
-* PyVista
-* Meshio
-* OpenMDAO
-* Nevergrad
-* PhysicsNeMo
-* PhysicsNeMo CFD
-* Three.js
-* React Three Fiber
-* VTK.js
-* Drei
+HX CFD Platform stands on the shoulders of exceptional open-source projects:
 
-## Installation Strategy
+- **[OpenFOAM](https://www.openfoam.com/)** — The foundation of modern open-source CFD
+- **[Gmsh](https://gmsh.info/)** — Powerful and flexible mesh generation
+- **[FreeCAD](https://www.freecad.org/)** — Community-driven CAD platform
+- **[FastAPI](https://fastapi.tiangolo.com/)** — Modern, fast web framework
+- **[React](https://react.dev/)** — Declarative UI programming
+- **[Tauri](https://tauri.app/)** — Lightweight desktop application framework
+- **[Three.js](https://threejs.org/)** — Accessible 3D graphics
+- **[OpenMDAO](https://openmdao.org/)** — Multidisciplinary design optimization framework
 
-For each dependency:
+---
 
-1. Detect whether it is already installed.
-2. Determine the installed version.
-3. Verify that it works correctly.
-4. If missing, install it using the official installation method.
-5. Configure environment variables if required.
-6. Register the dependency inside the application.
-7. Verify the installation after completion.
+## FAQ
 
-Do not hardcode download links if official package managers, release APIs, or package registries exist.
+**Q: Do I need to install OpenFOAM separately?**  
+A: Yes, currently OpenFOAM must be installed and `OPENFOAM_DIR` environment variable must be set. Future releases will include automated installation.
 
-Prefer the official installation mechanism for every dependency.
+**Q: Can I run this on macOS?**  
+A: Yes, the desktop application (Tauri) supports macOS 10.13+. Ensure OpenFOAM and Gmsh are installed via Homebrew or from source.
 
-Examples:
+**Q: What simulation types are supported?**  
+A: Currently: incompressible steady-state (simpleFoam), transient (pimpleFoam), multiphase (interFoam), compressible (rhoCentralFoam), and DNS (dnsFoam). More solvers can be added via plugin architecture.
 
-* Python libraries → pip
-* JavaScript libraries → npm
-* Docker images → Docker
-* Official installers → official releases
-* AI models → official model manager (for example, Ollama)
+**Q: Can I use this for teaching?**  
+A: Yes! The graphical interface removes barriers to CFD learning. Educational use is encouraged under GPL-3.0 terms.
 
-## User Interface
+**Q: How large can meshes be?**  
+A: Tested up to 10M elements; performance degrades with larger meshes. Streaming visualization is on the roadmap.
 
-Create a Dependency Manager page displaying:
+**Q: Is cluster support planned?**  
+A: Yes, distributed job submission and HPC cluster integration are planned for mid-term roadmap.
 
-* Name
-* Installed
-* Missing
-* Current Version
-* Latest Version
-* Install
-* Update
-* Remove
-* Verify
-* Installation Progress
-* Installation Logs
+**Q: How do I report bugs?**  
+A: Open an issue on GitHub with reproduction steps, logs, and system information.
 
-## Installation Workflow
+---
 
-When the user presses "Install All":
+## Vision
 
-* Check every dependency.
-* Skip those already installed.
-* Install only missing dependencies.
-* Continue if one dependency fails.
-* Show progress for every dependency.
-* Display a final installation summary.
+HX CFD Platform envisions a future where computational fluid dynamics is accessible to every engineer:
 
-## Error Handling
+- **Accessible**: Intuitive graphical interface removes CFD tooling barriers
+- **Integrated**: Unified workflow from geometry to visualization
+- **Extensible**: Plugin architecture enables solver and tool additions
+- **Open**: GPL-licensed and community-driven development
+- **Collaborative**: Team workspaces enable shared CFD research
+- **Scalable**: From laptop to high-performance computing clusters
 
-Handle:
+By eliminating context-switching and manual configuration, HX CFD enables engineers to focus on the physics and design optimization that matters.
 
-* Missing internet connection
-* Unsupported operating systems
-* Permission issues
-* Installation failures
-* Version conflicts
-* Corrupted installations
+---
 
-Provide clear recovery instructions.
-
-## Extensibility
-
-The dependency manager must be modular.
-
-Adding a future dependency should require only implementing a new provider, without changing the core installation engine.
-
-The final implementation should feel similar to professional installers such as Visual Studio Installer, Unity Hub, or Docker Desktop, where users click "Install" and the application manages all required dependencies automatically.
-NSE](LICENSE) in the project root.
+**For questions, issues, or contributions, visit the [GitHub repository](https://github.com/saranmatsa/HXCFD).**
