@@ -1,3 +1,0 @@
-[console_scripts]
-cfd-backend = cfd_backend.main:main
-cfd-backend-dev = cfd_backend.main:dev_main

@@ -1,7 +1,12 @@
-# Dependencies
-node_modules/
+# =============================================================================
+# HX CFD - Comprehensive .gitignore
+# Generated files that should NOT be committed to version control
+# =============================================================================
 
-# External dependency repos (managed separately)
+# -----------------------------------------------------------------------------
+# External Dependency Repositories
+# These are large projects managed separately - download via setup scripts
+# -----------------------------------------------------------------------------
 FreeCAD/
 gmsh/
 drei/
@@ -18,41 +23,114 @@ three.js/
 vtk-js/
 tauri/
 
-# Build outputs
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.virtualenv/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# -----------------------------------------------------------------------------
+# Rust / Tauri
+# -----------------------------------------------------------------------------
+# Build output directories
 target/
 target2/
 
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-
-# Cache
-cache/
-
-# Python
-__pycache__/
-*.pyc
-*.egg-info/
-.venv/
-*.db
-*.db-journal
-
-# Rust
+# Cargo lock file (usually not needed in library crates)
 Cargo.lock
 
-# Node
-package-lock.json
+# -----------------------------------------------------------------------------
+# Node.js / React / Frontend
+# -----------------------------------------------------------------------------
+# Dependencies
+node_modules/
 
-# OS
-*.jpeg
-*.jpg
-*.png
-*.gif
+# Build outputs
+cfd-platform/frontend/dist/
+cfd-platform/frontend/build/
+cfd-platform/frontend/.vite/
+
+# Package manager lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# -----------------------------------------------------------------------------
+# IDE and Editor
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Thumbs.db:encryptable
+
+# -----------------------------------------------------------------------------
+# Logs and Cache
+# -----------------------------------------------------------------------------
+logs/
 *.log
+cache/
+*.cache
+
+# -----------------------------------------------------------------------------
+# OS-specific
+# -----------------------------------------------------------------------------
+*.bak
+*.tmp
+*.temp
+*.swp
+*.swo
+*.lnk
+
+# -----------------------------------------------------------------------------
+# Installer / Build artifacts
+# -----------------------------------------------------------------------------
+cfd-platform/installer/output/
+*.exe
+*.msi
+*.dmg
+*.AppImage
