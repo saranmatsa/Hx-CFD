@@ -1,6 +1,6 @@
 # HX CFD — Continuation Status
 
-Last updated: 2026-07-19
+Last updated: 2026-07-21
 
 ## Current result
 
@@ -50,8 +50,10 @@ Key files:
 - Gmsh provides a real solid-geometry fallback for STEP/STP, IGES/IGS, and BREP.
 - STL and OBJ explicitly require FreeCAD; they are not silently sent through an invalid Gmsh fallback.
 - Meshing performs real Gmsh volume meshing, meshio conversion, VTK/PyVista analysis, preview generation, and quality reporting.
+- cfMesh is integrated as an optional OpenFOAM-native meshing route through `route: "cfmesh_cartesian"`. It exports the prepared CAD surface to STL with Gmsh, writes a real OpenFOAM `system/controlDict` and `system/meshDict`, runs `cartesianMesh`, publishes the resulting OpenFOAM `constant/polyMesh` case, and runs `checkMesh` when the OpenFOAM utility is available.
 - Boundary groups are explicit: selected inlet/outlet/wall/symmetry surfaces become physical groups. Remaining faces stay `unassigned` unless the user explicitly groups them as walls.
 - The OpenFOAM case adapter validates patch mapping before solver execution.
+- Physics and solver setup now accept either the Gmsh `.msh` route or a cfMesh/OpenFOAM case route. cfMesh does not fabricate a `.msh`; its canonical output is the OpenFOAM case directory.
 
 Key files:
 
@@ -59,6 +61,7 @@ Key files:
 - `backend/src/cfd_backend/services/workflow_service.py`
 - `backend/tests/test_gmsh_geometry_fallback.py`
 - `backend/tests/test_gmsh_boundary_groups.py`
+- `backend/tests/test_cfmesh_workflow.py`
 
 ### Reports, optimization, and surrogate stages
 
@@ -103,6 +106,9 @@ Key files:
   - authenticated inventory `200` with Gmsh `4.15.2` ready;
   - local project create/open succeeded.
 - Full Python test suite passed: **22 tests**.
+- Focused cfMesh backend contract tests passed on 2026-07-21:
+  - `backend\.venv\Scripts\python.exe -m unittest C:\CFD\cfd-platform\backend\tests\test_engine_registry.py C:\CFD\cfd-platform\backend\tests\test_cfmesh_workflow.py -q`
+  - Result: 4 tests OK.
 - `cargo fmt --check` passed.
 - `git diff --check` passed (only pre-existing line-ending warnings in frontend files).
 
@@ -123,24 +129,46 @@ Key files:
 - FreeCAD
 - OpenFOAM
 - ParaView
+- cfMesh `cartesianMesh`
 
 Their source checkouts may exist, but no runnable executables were found. HX CFD reports them as unavailable and blocks dependent stages instead of simulating them.
+
+### cfMesh integration status
+
+- The cfMesh source checkout is already present at `C:\CFD\code`.
+- The path `C:\CFD\code cfmesh-code` is only a `.git` directory artifact; do not treat it as the populated source tree.
+- `C:\CFD\code` is ignored from the root Git repository so the external engineering source is not vendored into HX CFD.
+- Backend configuration now supports `CFMESH_PATH`.
+- Engine inventory now includes `cfmesh` with display name `cfMesh`, adapter `cfmesh_cartesian_mesh`, and executable names `cartesianMesh.exe` / `cartesianMesh`.
+- Workflow meshing configuration accepts `route: "cfmesh_cartesian"` in addition to the default `tetrahedral`.
+- Required engines for `cfmesh_cartesian` are `cfmesh` and `gmsh`. OpenFOAM `checkMesh` is used for validation when available.
+- The real execution route is implemented in `EngineeringOrchestrator._generate_cfmesh_cartesian_mesh`.
+- The route is not fully operational until `cartesianMesh` is built or otherwise installed and reachable through `CFMESH_PATH` or `PATH`.
 
 ## Remaining work
 
 ### Required before claiming all 14 engines are operational
 
 1. Install or configure runnable local executables for FreeCAD, OpenFOAM, and ParaView.
-2. Refresh engine inventory from HX CFD after installation and verify each reports `ready`.
-3. Run an end-to-end OpenFOAM case:
+2. Build or install cfMesh so `cartesianMesh` is runnable. Use the existing checkout at `C:\CFD\code`; do not reclone it.
+3. Configure `CFMESH_PATH` to the directory containing `cartesianMesh` or to a parent directory with `bin\cartesianMesh`.
+4. Refresh engine inventory from HX CFD after installation and verify each reports `ready`.
+5. Run an end-to-end OpenFOAM case:
    - import geometry;
    - prepare geometry;
    - create mesh with explicit boundary groups;
    - generate OpenFOAM case;
    - run `gmshToFoam`, `checkMesh`, and the selected solver;
    - run `foamToVTK` and results visualization.
-4. Run a FreeCAD STL/OBJ import and closed-solid validation flow.
-5. Run ParaView-backed advanced visualization if ParaView integration is required beyond the existing VTK/PyVista path.
+6. Run a cfMesh route case:
+   - prepare STEP/IGES/BREP geometry;
+   - configure meshing with `route: "cfmesh_cartesian"`;
+   - confirm Gmsh creates `constant\triSurface\geometry.stl`;
+   - confirm cfMesh creates `constant\polyMesh`;
+   - confirm `checkMesh` accepts the mesh when OpenFOAM is configured;
+   - configure Physics directly from the OpenFOAM case without expecting `mesh.msh`.
+7. Run a FreeCAD STL/OBJ import and closed-solid validation flow.
+8. Run ParaView-backed advanced visualization if ParaView integration is required beyond the existing VTK/PyVista path.
 
 ### Packaging follow-up
 
@@ -405,6 +433,7 @@ The backend can only execute engines that are installed and runnable locally. Co
 | Engine / capability | Current status | Needed to complete |
 | --- | --- | --- |
 | Gmsh | Ready and tested | Keep Python package/runtime available. |
+| cfMesh | Backend route integrated, executable not runnable | Use existing checkout at `C:\CFD\code`; build/install `cartesianMesh`; set `CFMESH_PATH`; run `route: "cfmesh_cartesian"` E2E. |
 | meshio | Ready and tested | Keep managed package available. |
 | VTK / PyVista | Ready and tested | Keep managed packages available. |
 | OpenMDAO | Ready and tested | Keep managed package available. |
@@ -431,6 +460,7 @@ Run these tests before declaring a release usable:
 - [ ] Installer builds successfully.
 - [ ] Clean-VM install and automatic backend startup succeeds without system Python.
 - [ ] Geometry → mesh workflow passes using Gmsh.
+- [ ] Geometry → mesh workflow passes using cfMesh `route: "cfmesh_cartesian"` after `cartesianMesh` is built/configured.
 - [ ] Explicit mesh boundary groups are visible and correct.
 - [ ] OpenFOAM chain passes after OpenFOAM is installed.
 - [ ] Results conversion/visualization passes after required engines are installed.

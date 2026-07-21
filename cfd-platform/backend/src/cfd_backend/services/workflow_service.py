@@ -1204,20 +1204,20 @@ class LocalWorkflowService:
             raise ValueError("Workflow configuration must be a JSON object.")
         normalized = json.loads(json.dumps(configuration, sort_keys=True))
         if stage_id == "meshing":
-            # The current Gmsh adapter publishes an unstructured tetrahedral
-            # volume mesh.  Do not persist a "hex dominant" selection until a
-            # real recombination/hex workflow is implemented and validated.
+            # The default Gmsh adapter publishes an unstructured tetrahedral
+            # volume mesh.  cfMesh is exposed as a separate OpenFOAM-native
+            # Cartesian route only when explicitly selected.
             route = normalized.get("route", "tetrahedral")
             # Migrate the historical default rather than making existing
             # projects impossible to run. It was only a label; prior runs
             # have always used the same tetrahedral adapter.
             if route == "hex_dominant":
                 route = "tetrahedral"
-            if route != "tetrahedral":
+            if route not in {"tetrahedral", "cfmesh_cartesian"}:
                 raise ValueError(
-                    "The installed meshing adapter currently supports the tetrahedral route only."
+                    "The installed meshing adapters support only 'tetrahedral' and 'cfmesh_cartesian'."
                 )
-            normalized["route"] = "tetrahedral"
+            normalized["route"] = route
             normalized.setdefault("boundary_layers", {})
             normalized.setdefault("quality_policy", {})
             try:
@@ -1271,6 +1271,9 @@ class LocalWorkflowService:
             # error instead of masking it as an unrelated missing engine.
             return ()
         if stage_id == "meshing":
+            route = self._normalize_configuration(stage_id, configuration).get("route", "tetrahedral")
+            if route == "cfmesh_cartesian":
+                return ("cfmesh", "gmsh")
             return ("gmsh", "meshio", "vtk", "pyvista")
         if stage_id == "solver":
             return ("openfoam",)

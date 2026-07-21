@@ -76,6 +76,15 @@ ENGINE_DEFINITIONS: tuple[EngineDefinition, ...] = (
         executable_names=("gmsh.exe", "gmsh"),
     ),
     EngineDefinition(
+        id="cfmesh",
+        display_name="cfMesh",
+        workflow=("meshing",),
+        runtime="openfoam_mesh_worker",
+        optional=True,
+        adapter="cfmesh_cartesian_mesh",
+        executable_names=("cartesianMesh.exe", "cartesianMesh"),
+    ),
+    EngineDefinition(
         id="meshio",
         display_name="meshio",
         workflow=("meshing", "results", "reports"),
@@ -400,6 +409,7 @@ class EngineRegistry:
     def _resolve_executable(self, definition: EngineDefinition) -> Optional[Path]:
         configured_paths = {
             "gmsh": self.settings.gmsh_path,
+            "cfmesh": getattr(self.settings, "cfmesh_path", None),
             "openfoam": self.settings.openfoam_path,
             "paraview": self.settings.paraview_path,
             "freecad": self.settings.freecad_path,
@@ -436,6 +446,7 @@ class EngineRegistry:
         relative_roots = {
             "freecad": ("FreeCAD", "FreeCAD 1.0"),
             "gmsh": ("Gmsh",),
+            "cfmesh": ("cfMesh",),
             "paraview": ("ParaView", "ParaView 5.12.0"),
             "openfoam": ("OpenFOAM",),
         }.get(engine_id, ())

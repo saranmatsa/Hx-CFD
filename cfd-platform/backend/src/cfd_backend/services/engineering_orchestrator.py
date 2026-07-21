@@ -187,6 +187,10 @@ class EngineeringOrchestrator:
     async def _generate_mesh(
         self, project_path: Path, run_path: Path, configuration: dict[str, Any]
     ) -> dict[str, Any]:
+        route = self._mesh_route(configuration)
+        if route == "cfmesh_cartesian":
+            return await self._generate_cfmesh_cartesian_mesh(project_path, run_path, configuration)
+
         # A CFD mesh is valuable engineering evidence in its own right.  Do
         # not make Gmsh meshing contingent on a solver installation: Gmsh,
         # meshio, VTK, and PyVista own generation, interchange, diagnostics,
@@ -289,6 +293,118 @@ class EngineeringOrchestrator:
             "validation": validation,
         }
 
+    async def _generate_cfmesh_cartesian_mesh(
+        self, project_path: Path, run_path: Path, configuration: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Generate an OpenFOAM polyMesh through cfMesh cartesianMesh.
+
+        cfMesh is an OpenFOAM-native mesher, so this adapter publishes an
+        OpenFOAM case as the canonical mesh artifact.  It still uses Gmsh only
+        for the preceding CAD-to-STL surface handoff because cfMesh consumes a
+        triangulated surface file, not a STEP/BREP volume directly.
+        """
+        await self._require(("cfmesh", "gmsh"))
+        geometry = self._latest_artifact(project_path, "geometry", "prepared_geometry")
+        fields = self._fields(configuration)
+        base_size = self._number(fields.get("Base size"), 1.0)
+        boundary_layers = max(0, int(self._number(fields.get("Boundary layers"), 0)))
+        growth_rate = self._number(fields.get("Growth rate"), 1.18)
+
+        case_path = run_path / "openfoam"
+        tri_surface = case_path / "constant" / "triSurface" / "geometry.stl"
+        mesh_dict = case_path / "system" / "meshDict"
+        control_dict = case_path / "system" / "controlDict"
+        check_log = run_path / "cfmesh-checkMesh.log"
+        case_path.joinpath("constant", "triSurface").mkdir(parents=True)
+        case_path.joinpath("system").mkdir(parents=True)
+
+        await asyncio.to_thread(self._gmsh_export_surface_stl, geometry, tri_surface, base_size)
+        self._write_cfmesh_control_dict(control_dict)
+        self._write_cfmesh_mesh_dict(
+            mesh_dict,
+            surface_file=tri_surface.name,
+            base_size=base_size,
+            boundary_layers=boundary_layers,
+            growth_rate=growth_rate,
+        )
+
+        cartesian_mesh = await self._engine_executable("cfmesh")
+        stdout = await self._run((cartesian_mesh, "-case", str(case_path)), run_path)
+        boundary_file = case_path / "constant" / "polyMesh" / "boundary"
+        if not boundary_file.exists():
+            raise EngineeringExecutionError("cfMesh cartesianMesh did not publish constant/polyMesh/boundary.")
+
+        validation: dict[str, Any] = {
+            "cfmesh": {
+                "status": "completed",
+                "output": stdout[-6000:],
+            }
+        }
+        try:
+            check_mesh = self._openfoam_executable("checkMesh")
+        except EngineeringExecutionError as error:
+            validation["openfoam_check"] = {"status": "deferred", "reason": str(error)}
+        else:
+            check_output = await self._run(
+                (check_mesh, "-case", str(case_path), "-allGeometry", "-allTopology"),
+                run_path,
+            )
+            check_log.write_text(check_output, encoding="utf-8")
+            if "Mesh OK" not in check_output:
+                raise EngineeringExecutionError("OpenFOAM checkMesh did not accept the cfMesh output.")
+            validation["openfoam_check"] = {
+                "status": "accepted",
+                "output": check_output[-6000:],
+            }
+
+        patches = self._read_openfoam_boundary_patches(boundary_file)
+        boundary_groups = {
+            "surface_source": str(tri_surface),
+            "patches": patches,
+            "ready_for_solver": bool(patches),
+            "guidance": (
+                "cfMesh generated OpenFOAM patches from the input STL. Verify inlet, outlet, wall, "
+                "and symmetry names in the Physics stage before solving."
+            ),
+        }
+        boundary_report = run_path / "mesh-boundaries.json"
+        quality_file = run_path / "mesh-quality.json"
+        self._write_json(boundary_report, boundary_groups)
+        self._write_json(
+            quality_file,
+            {
+                "quality": {
+                    "status": "openfoam_native",
+                    "diagnostics": "Use checkMesh output for cfMesh OpenFOAM polyMesh quality.",
+                    "patch_count": len(patches),
+                },
+                "validation": validation,
+                "source_geometry": str(geometry),
+                "surface_file": str(tri_surface),
+                "boundary_layers": boundary_layers,
+                "growth_rate": growth_rate,
+                "route": "cfmesh_cartesian",
+            },
+        )
+
+        artifacts = [str(case_path), str(tri_surface), str(mesh_dict), str(boundary_report), str(quality_file)]
+        if check_log.exists():
+            artifacts.append(str(check_log))
+        return {
+            "engines": ["cfMesh", "Gmsh", "OpenFOAM" if "accepted" == validation.get("openfoam_check", {}).get("status") else "OpenFOAM checkMesh deferred"],
+            "artifacts": artifacts,
+            "mesh": {
+                "openfoam_case": str(case_path),
+                "surface": str(tri_surface),
+                "boundary_groups": boundary_groups,
+                "boundary_report": str(boundary_report),
+                "route": "cfmesh_cartesian",
+            },
+            "boundary_groups": boundary_groups,
+            "quality": self._read_json(quality_file)["quality"],
+            "validation": validation,
+        }
+
     async def _write_physics_case(
         self, project_path: Path, run_path: Path, configuration: dict[str, Any]
     ) -> dict[str, Any]:
@@ -299,12 +415,20 @@ class EngineeringOrchestrator:
         the solver adapter performs conversion at run time when necessary.
         """
         mesh = self._latest_payload(project_path, "meshing").get("mesh")
-        if not isinstance(mesh, dict) or not mesh.get("gmsh"):
-            raise EngineeringExecutionError("The accepted mesh does not contain a Gmsh artifact for simulation setup.")
-        mesh_file = Path(str(mesh["gmsh"]))
-        if not mesh_file.exists():
-            raise EngineeringExecutionError("The accepted Gmsh mesh artifact no longer exists.")
+        if not isinstance(mesh, dict):
+            raise EngineeringExecutionError("The accepted mesh payload is missing for simulation setup.")
+        mesh_file: Path | None = None
+        if mesh.get("gmsh"):
+            mesh_file = Path(str(mesh["gmsh"]))
+            if not mesh_file.exists():
+                raise EngineeringExecutionError("The accepted Gmsh mesh artifact no longer exists.")
         openfoam_case = mesh.get("openfoam_case")
+        if openfoam_case and not Path(str(openfoam_case)).exists():
+            raise EngineeringExecutionError("The accepted OpenFOAM mesh case no longer exists.")
+        if mesh_file is None and not openfoam_case:
+            raise EngineeringExecutionError(
+                "The accepted mesh does not contain either a Gmsh artifact or an OpenFOAM case."
+            )
         physics_file = run_path / "physics.json"
         # Persist a canonical, engine-independent boundary recipe at setup
         # time.  The solver later validates these names against the actual
@@ -315,7 +439,7 @@ class EngineeringOrchestrator:
         canonical_configuration = dict(configuration)
         canonical_configuration["boundary_recipe"] = self.normalize_boundary_recipe(configuration)
         payload = {
-            "mesh_file": str(mesh_file),
+            "mesh_file": str(mesh_file) if mesh_file else None,
             "openfoam_case": str(openfoam_case) if openfoam_case else None,
             "configuration": canonical_configuration,
         }
@@ -327,14 +451,17 @@ class EngineeringOrchestrator:
     ) -> dict[str, Any]:
         await self._require(("openfoam",))
         physics = self._read_json(self._latest_artifact(project_path, "physics", "physics_file"))
-        mesh_file = Path(str(physics.get("mesh_file") or ""))
-        if not mesh_file.exists():
+        mesh_file_value = physics.get("mesh_file")
+        mesh_file = Path(str(mesh_file_value)) if mesh_file_value else None
+        if mesh_file and not mesh_file.exists():
             raise EngineeringExecutionError("The configured Gmsh mesh artifact no longer exists.")
         case_path = run_path / "case"
         prepared_case = Path(str(physics["openfoam_case"])) if physics.get("openfoam_case") else None
         if prepared_case and prepared_case.exists():
             shutil.copytree(prepared_case, case_path)
         else:
+            if mesh_file is None:
+                raise EngineeringExecutionError("Solver setup requires a Gmsh mesh or an existing OpenFOAM case.")
             case_path.mkdir()
             gmsh_to_foam = self._openfoam_executable("gmshToFoam")
             await self._run((gmsh_to_foam, "-case", str(case_path), str(mesh_file)), run_path)
@@ -593,6 +720,24 @@ class EngineeringOrchestrator:
         executable = shutil.which(f"{name}.exe") or shutil.which(name)
         if not executable:
             raise EngineeringExecutionError(f"OpenFOAM executable '{name}' is not available on the local toolchain.")
+        return executable
+
+    async def _cfmesh_executable(self, name: str) -> str:
+        if name == "cartesianMesh":
+            return await self._engine_executable("cfmesh")
+        cfmesh_path = getattr(self.settings, "cfmesh_path", None)
+        if cfmesh_path:
+            for location in (
+                cfmesh_path / "bin" / f"{name}.exe",
+                cfmesh_path / "bin" / name,
+                cfmesh_path / f"{name}.exe",
+                cfmesh_path / name,
+            ):
+                if location.exists():
+                    return str(location)
+        executable = shutil.which(f"{name}.exe") or shutil.which(name)
+        if not executable:
+            raise EngineeringExecutionError(f"cfMesh executable '{name}' is not available on the local toolchain.")
         return executable
 
     async def _run(
@@ -904,6 +1049,105 @@ with open(report, 'w', encoding='utf-8') as handle:
                 _GMSH_API_LOCK.release()
 
     @staticmethod
+    def _gmsh_export_surface_stl(source: Path, target: Path, base_size: float) -> None:
+        import gmsh
+
+        _GMSH_API_LOCK.acquire()
+        initialized = False
+        try:
+            gmsh.initialize(interruptible=False)
+            initialized = True
+            gmsh.option.setNumber("General.Terminal", 1)
+            gmsh.model.add("hx-cfd-cfmesh-surface")
+            gmsh.model.occ.importShapes(str(source))
+            gmsh.model.occ.synchronize()
+            surfaces = sorted(gmsh.model.getEntities(2), key=lambda entity: entity[1])
+            if not surfaces:
+                raise EngineeringExecutionError("The prepared CAD file contains no surfaces for cfMesh export.")
+            gmsh.option.setNumber("Mesh.CharacteristicLengthMin", max(base_size * 0.25, 1e-6))
+            gmsh.option.setNumber("Mesh.CharacteristicLengthMax", max(base_size, 1e-6))
+            gmsh.model.mesh.generate(2)
+            gmsh.write(str(target))
+            if not target.exists():
+                raise EngineeringExecutionError("Gmsh did not export the cfMesh STL surface.")
+        finally:
+            try:
+                if initialized:
+                    gmsh.finalize()
+            finally:
+                _GMSH_API_LOCK.release()
+
+    @staticmethod
+    def _write_cfmesh_control_dict(path: Path) -> None:
+        path.write_text(
+            """FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+
+application     cartesianMesh;
+startFrom       latestTime;
+startTime       0;
+stopAt          endTime;
+endTime         1;
+deltaT          1;
+writeControl    timeStep;
+writeInterval   1;
+purgeWrite      0;
+writeFormat     ascii;
+writePrecision  6;
+writeCompression off;
+timeFormat      general;
+timePrecision   6;
+runTimeModifiable true;
+""",
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_cfmesh_mesh_dict(
+        path: Path,
+        surface_file: str,
+        base_size: float,
+        boundary_layers: int,
+        growth_rate: float,
+    ) -> None:
+        boundary_section = ""
+        if boundary_layers:
+            boundary_section = f"""
+
+boundaryLayers
+{{
+    nLayers           {boundary_layers};
+    thicknessRatio    {max(growth_rate, 1.0):.6g};
+    maxFirstLayerThickness {max(base_size * 0.05, 1e-7):.6g};
+}}
+"""
+        path.write_text(
+            f"""FoamFile
+{{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      meshDict;
+}}
+
+surfaceFile "{surface_file}";
+
+maxCellSize      {max(base_size, 1e-6):.6g};
+boundaryCellSize {max(base_size, 1e-6):.6g};
+minCellSize      {max(base_size * 0.25, 1e-7):.6g};
+{boundary_section}
+""",
+            encoding="utf-8",
+        )
+
+    @staticmethod
     def normalize_mesh_boundary_groups(meshing_configuration: dict[str, Any]) -> dict[str, Any]:
         """Normalize explicit Gmsh surface selections into a stable recipe.
 
@@ -1108,6 +1352,24 @@ with open(report, 'w', encoding='utf-8') as handle:
                 else "Every surface has a named physical group and inlet/outlet are explicitly selected."
             ),
         }
+
+    @staticmethod
+    def _read_openfoam_boundary_patches(boundary_file: Path) -> list[dict[str, Any]]:
+        text = boundary_file.read_text(encoding="utf-8", errors="replace")
+        patches: list[dict[str, Any]] = []
+        for match in _OPENFOAM_BOUNDARY_ENTRY.finditer(text):
+            name = match.group("name")
+            if name in {"FoamFile", "boundary"}:
+                continue
+            body = match.group("body")
+            type_match = _OPENFOAM_BOUNDARY_TYPE.search(body)
+            patches.append(
+                {
+                    "name": name,
+                    "type": type_match.group("type") if type_match else "unknown",
+                }
+            )
+        return patches
 
     @staticmethod
     def _mesh_diagnostics(mesh_file: Path, vtk_file: Path, preview_file: Path) -> dict[str, Any]:
@@ -2041,6 +2303,11 @@ with open(report, 'w', encoding='utf-8') as handle:
     def _fields(configuration: dict[str, Any]) -> dict[str, Any]:
         fields = configuration.get("fields", configuration)
         return fields if isinstance(fields, dict) else {}
+
+    @staticmethod
+    def _mesh_route(configuration: dict[str, Any]) -> str:
+        fields = EngineeringOrchestrator._fields(configuration)
+        return str(configuration.get("route") or fields.get("Route") or "tetrahedral").strip()
 
     @staticmethod
     def _source_path(configuration: dict[str, Any]) -> Path:

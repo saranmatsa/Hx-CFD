@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     openfoam_version: str = Field(default="v2306", alias="OPENFOAM_VERSION")
     gmsh_path: Optional[Path] = Field(default=None, alias="GMSH_PATH")
     gmsh_version: str = Field(default="4.11.0", alias="GMSH_VERSION")
+    cfmesh_path: Optional[Path] = Field(default=None, alias="CFMESH_PATH")
     paraview_path: Optional[Path] = Field(default=None, alias="PARAVIEW_PATH")
     paraview_version: str = Field(default="5.12.0", alias="PARAVIEW_VERSION")
     

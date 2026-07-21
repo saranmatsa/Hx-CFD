@@ -33,9 +33,18 @@ class TestEngineRegistry(unittest.IsolatedAsyncioTestCase):
         registry = CountingRegistry()
 
         available, unavailable = await registry.requirements_available(
-            ("gmsh", "meshio", "vtk", "pyvista"), refresh=True
+            ("gmsh", "cfmesh", "meshio", "vtk", "pyvista"), refresh=True
         )
 
         self.assertTrue(available)
         self.assertEqual(unavailable, [])
         self.assertEqual(registry.probe_count, len(registry.definitions))
+
+    async def test_cfmesh_is_available_as_a_meshing_engine_contract(self) -> None:
+        registry = CountingRegistry()
+
+        capability = await registry.capability("cfmesh", refresh=True)
+
+        self.assertEqual(capability.display_name, "cfMesh")
+        self.assertIn("meshing", capability.workflow)
+        self.assertEqual(capability.adapter, "cfmesh_cartesian_mesh")
