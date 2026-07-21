@@ -425,4 +425,66 @@ Live system data, so it follows the same rule as every other live measurement in
 
 ---
 
+## 30. CFD Workflow Configuration Surfaces
+
+No primary workflow module may ship as a decorative placeholder. Every module must present the current engineering truth, the configuration that can be changed now, the prerequisite that is missing if it is blocked, and one clear next action. Repository names are not primary UI labels: HX presents the engineering job, while implementation provenance stays in an Advanced/Diagnostics layer.
+
+| Module | Focus-tier configuration surface | Glance-tier information | Empty / prerequisite state |
+|---|---|---|---|
+| Dashboard | Project activity, workflow readiness, recent runs, blocking issues | resource status, active job | No project: Create project / Open project |
+| Geometry | import, unit/transform review, geometry health, repair revision, named regions | selected entity facts, revision status | No geometry: Import CAD or mesh |
+| Meshing | flow domain, patches, mesh strategy, sizing, boundary layers, quality, acceptance | target/estimated cells, last quality verdict | No accepted geometry: finish geometry validation first |
+| Physics | material, fluid model, turbulence, energy, operating conditions, boundary-condition mapping | units, unresolved assignments | No accepted mesh: accept a mesh before defining physics |
+| Solver | solver family, numerical controls, initialization, convergence criteria, compute profile | estimated cost, prior run comparison | Missing physics or mesh: show exact unresolved prerequisite |
+| Results | field selection, contour/slice/streamline/probe controls, monitor selection, comparison | running residuals, active time step | No completed run: No results yet — run a solve to see them here |
+| Reports | report scope, selected artifacts, templates, export destination | artifact completeness, last export | No accepted result: run or import results first |
+
+### Module layout contract
+
+- The left panel holds the ordered configuration tree and search. It is not a static decorative explorer: selection changes the active configuration surface.
+- The central viewport is the geometric/mesh/result evidence for the active decision. It always has loading, empty, error, and selection feedback states.
+- The right inspector edits the selected object or setting, grouped by engineering consequence rather than library/API names.
+- The bottom dock is contextual: mesh quality and generation log in Meshing; residuals/monitors in Solver; plots/probes/AI evidence in Results. It does not reserve empty panels merely for visual symmetry.
+- Actions that create a new geometry, mesh, case, run, or report revision must state the revision consequence before execution and publish success only after validation succeeds.
+
+### Configuration screen state contract
+
+| State | Required UI behavior |
+|---|---|
+| Empty | state the exact missing artifact and provide only the next valid action |
+| Blocked | name the prerequisite and provide a direct navigation/action path; never present disabled controls without explanation |
+| Ready | show editable validated controls, predicted impact where available, and an explicit action to create the next revision |
+| Running | lock only controls that would invalidate the active job; show stage, elapsed time, live evidence, cancel action, and access to logs |
+| Validation warning | show the affected entity, measured fact, severity, and recovery action inline; do not use a generic warning banner alone |
+| Failed | plain-language diagnosis first, technical evidence on expansion, retry only when the failure is infrastructure-retryable |
+| Completed | show output revision, acceptance/next action, and provenance link; never imply downstream acceptance automatically |
+
+### Mesh configuration contract
+
+Meshing is a seven-step configuration workflow, not one Generate button:
+
+1. Geometry Health
+2. Flow Domain & Patches
+3. Mesh Strategy
+4. Sizing & Features
+5. Boundary Layers
+6. Quality & Diagnostics
+7. Acceptance
+
+The engineer can inspect and configure route, protected features, sizing/refinement regions, boundary-layer targets, quality thresholds, and resource budget. The UI may recommend choices, but AI and automation never silently delete features, map physical boundaries, waive quality failures, choose wall treatment, or accept a mesh.
+
+---
+
+## 31. Local-First Runtime States
+
+HX CFD is a desktop instrument, even when a local service or engineering worker is active. The UI must never instruct the engineer to open a browser, use localhost, launch Python, run a terminal command, or open an underlying engineering tool.
+
+- Startup: show a compact HX launch state while the desktop session initializes local services and validates the engineering environment. If a local tool is unavailable, show its capability impact and repair action inside HX—not a command line.
+- Offline: normal geometry, meshing, solving, results, and local-project workflows remain available. Remote AI/provider controls are quietly unavailable with a factual local/offline explanation; they never block an engineering action.
+- Local jobs: show the engineering stage and evidence, not process names or process IDs. Advanced diagnostics may reveal tool versions, worker logs, and artifact paths.
+- Project data: surface local project location and artifact provenance in Project Details. Never imply data synchronization or cloud upload unless the engineer explicitly enabled an optional extension.
+- AI: clearly label guidance as a recommendation, cite the project evidence it used, and distinguish surrogate/estimated fields from validated solver results.
+
+---
+
 **End of Document**

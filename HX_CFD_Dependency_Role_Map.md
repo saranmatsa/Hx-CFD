@@ -8,12 +8,23 @@ This document maps every dependency in the bundle to its specific job in the HX 
 ## Pipeline overview
 
 ```
-Geometry → Meshing → Solving → Optimization loop → ML acceleration → Post-processing → 3D viewport (UI)
-FreeCAD    Gmsh       OpenFOAM   OpenMDAO/Nevergrad   PhysicsNeMo(-CFD)   VTK/PyVista/ParaView   three.js/r3f/drei
-                       ↑______________meshio (format bridge between every stage)______________↑
+Geometry → semantic boundaries → mesh route → solver-native mesh → solve → results → viewport
+FreeCAD       HX registry      Gmsh OR      OpenFOAM      OpenFOAM  VTK/PyVista  three.js/r3f/drei
+                                  snappyHexMesh
+meshio is an on-demand interchange import/export utility, not the canonical mesh pipeline.
 ```
 
-All stages left of the viewport run inside the compiled Python backend `.exe` (the sidecar process). Only the last stage runs in the Tauri webview.
+The compiled Python sidecar orchestrates all stages left of the viewport, but native and heavy workloads run in isolated supervised workers. Only the presentation stack runs in the Tauri webview.
+
+## Phase 11 integration corrections
+
+The detailed lifecycle, storage, data ownership, failure handling, and user abstraction for every repository are defined in HX-CFD-Local-First-Integration-Architecture.md. That document takes precedence wherever earlier role descriptions are simplified or conflict with these rules:
+
+- Tauri/Rust supervises the session and all native child process trees. The sidecar service is FastAPI-based but private, local, and never a user-operated localhost service.
+- FreeCADCmd, Gmsh jobs, OpenFOAM/MPI, ParaView batch jobs, and GPU ML jobs are isolated workers. The UI never launches them and never owns their memory.
+- Artifact references and validated recipes pass across process boundaries; project state is local, immutable, versioned, and separate from Program Files.
+- Route A uses Gmsh plus OpenFOAM gmshToFoam. Route B uses OpenFOAM blockMesh and snappyHexMesh. meshio must not be used to convert MSH into an OpenFOAM polyMesh.
+- Repository names are implementation provenance, not ordinary user-facing workflow labels. HX CFD exposes semantic workflow screens, diagnostics, and advanced provenance instead.
 
 ---
 
@@ -22,20 +33,20 @@ All stages left of the viewport run inside the compiled Python backend `.exe` (t
 ### FreeCAD
 **Role:** Parametric CAD kernel. This is where the user's 3D geometry — the part or assembly being analyzed (a heat exchanger, duct, enclosure, whatever HX CFD targets) — is defined, edited, and parameterized.
 **Used for:** Loading/editing CAD geometry (STEP, IGES, native FreeCAD files), applying parametric changes driven by the optimization loop (Section 3), exporting clean geometry for meshing.
-**Layer:** Python backend (FreeCAD ships its own Python API — `FreeCAD`/`Part`/`PartDesign` modules — invoked headlessly from the backend `.exe`, no FreeCAD GUI is shown to the user).
+**Layer:** Backend-supervised FreeCADCmd/headless adapter. FreeCAD's own `FreeCAD`/`Part`/`PartDesign` APIs execute in a disposable geometry worker; no FreeCAD GUI is shown to the user.
 **Why not reimplemented:** A parametric CAD kernel is a multi-decade engineering effort (boundary representation, constraint solving, STEP/IGES translators). FreeCAD's Open CASCADE-based kernel is the only realistic option short of licensing a commercial kernel.
 
 ### Gmsh
 **Role:** Mesh generator. Takes the geometry FreeCAD produces and generates the volumetric/surface mesh OpenFOAM needs to solve on.
 **Used for:** 2D/3D unstructured mesh generation, mesh refinement control (boundary layers, size fields), batch/scripted meshing driven by the backend so the user never opens a separate meshing GUI.
-**Layer:** Python backend (via Gmsh's Python API, or the bundled `gmsh` CLI binary invoked as a subprocess).
+**Layer:** A disposable backend-supervised mesh worker, using the Gmsh Python API by default and the pinned `gmsh` CLI only where an adapter requires it.
 **Why not reimplemented:** Robust unstructured meshing (especially boundary-layer-aware meshing for CFD) is its own deep discipline; Gmsh is a de facto standard specifically because OpenFOAM users rely on it.
 
 ### meshio
-**Role:** Universal mesh-format translator. The glue between every tool above and below it in the pipeline.
-**Used for:** Converting Gmsh's native mesh format into OpenFOAM's `polyMesh` format, and converting OpenFOAM/solver output meshes into formats VTK/PyVista/ParaView can read (VTU, VTK legacy, XDMF, etc.) without the user ever touching a converter.
-**Layer:** Python backend (pure Python library, imported directly).
-**Why not reimplemented:** Every one of these tools uses a slightly different mesh file dialect; meshio already solves this translation problem comprehensively and is maintained specifically to stay in sync with new format revisions.
+**Role:** On-demand mesh interchange reader/writer and lightweight structural inspector.
+**Used for:** Importing and exporting supported interchange formats, inspecting cell/field structure, and normalizing compatible mesh/result artifacts for downstream visualization. It is **not** the canonical conversion path from Gmsh MSH to OpenFOAM `polyMesh`; that conversion is owned by OpenFOAM `gmshToFoam`, which preserves solver-native patch semantics.
+**Layer:** Python backend, inside a disposable mesh or post-processing worker.
+**Why not reimplemented:** Every external interchange format has dialect and metadata edge cases. meshio supplies a maintained adapter layer, while HX CFD owns compatibility reporting, semantic patch preservation, artifact provenance, and the decision to accept or reject a conversion.
 
 ---
 
@@ -54,13 +65,13 @@ All stages left of the viewport run inside the compiled Python backend `.exe` (t
 ### OpenMDAO
 **Role:** Multidisciplinary design optimization (MDO) framework. Wraps the geometry→mesh→solve→post-process pipeline into a single differentiable/iterable "analysis" that an optimizer can drive.
 **Used for:** Defining the design variables (geometry parameters from FreeCAD), the objective/constraints (derived from OpenFOAM results), and orchestrating repeated pipeline runs during an optimization study (e.g. "find the fin geometry that minimizes pressure drop for a given heat duty").
-**Layer:** Python backend.
+**Layer:** Dedicated local optimization worker, with durable checkpoints and isolated child analysis jobs.
 **Why not reimplemented:** OpenMDAO provides the orchestration, convergence, and gradient-management infrastructure for coupled multi-tool optimization loops — recreating this bookkeeping (component graphs, connections, driver interfaces) from scratch would just be a worse copy of OpenMDAO.
 
 ### Nevergrad
 **Role:** Gradient-free ("black-box") optimizer. Plugs into OpenMDAO as the driver when the objective function (a full CFD run) has no usable analytic gradient.
 **Used for:** Searching the design-parameter space (geometry dimensions, operating conditions) when you can't differentiate through a CFD solve directly — genetic algorithms, CMA-ES, and similar strategies from Nevergrad's library.
-**Layer:** Python backend, invoked as an OpenMDAO driver plugin.
+**Layer:** Local optimization worker, integrated through an HX study adapter rather than exposed directly to the UI.
 **Why not reimplemented:** Nevergrad packages a wide, well-tested library of black-box optimization algorithms; picking and correctly implementing even one of these from scratch (e.g. CMA-ES) is substantial work Nevergrad already does correctly.
 
 ---
@@ -70,13 +81,13 @@ All stages left of the viewport run inside the compiled Python backend `.exe` (t
 ### PhysicsNeMo
 **Role:** Physics-informed machine learning framework. Used to train and run surrogate models that approximate what OpenFOAM would compute, but orders of magnitude faster — critical for making the Nevergrad/OpenMDAO optimization loop (which needs many pipeline evaluations) tractable.
 **Used for:** Training neural surrogate models on prior OpenFOAM runs, then substituting the surrogate for the full solver during exploratory optimization passes (with periodic full-fidelity OpenFOAM runs to validate/retrain).
-**Layer:** Python backend. GPU-accelerated where a local CUDA-capable GPU is present; falls back to CPU otherwise. This is the largest single component in the bundle by disk size.
+**Layer:** Separately pinned local GPU worker. GPU/CUDA availability is preflighted and reported; HX does not silently substitute a different execution mode. This is the largest single component in the bundle by disk size.
 **Why not reimplemented:** Physics-informed neural network architectures (Fourier neural operators, graph neural network solvers, etc.) are active research-grade implementations; PhysicsNeMo packages NVIDIA's reference implementations correctly and keeps them GPU-optimized.
 
 ### PhysicsNeMo-CFD
 **Role:** CFD-specific model zoo and utilities built on top of PhysicsNeMo.
 **Used for:** Pretrained/pretrainable surrogate architectures specifically shaped for CFD field prediction (pressure/velocity fields over a mesh), rather than generic PhysicsNeMo building blocks — this is what actually gets wired into the OpenMDAO/Nevergrad loop as the fast objective evaluator.
-**Layer:** Python backend, on top of PhysicsNeMo.
+**Layer:** The same isolated, separately version-pinned local GPU worker as PhysicsNeMo.
 **Why not reimplemented:** Same reasoning as PhysicsNeMo — this is the CFD-domain-specialized layer NVIDIA maintains on top of the general framework; writing new CFD surrogate architectures is a research project, not an integration task.
 
 ---
@@ -85,14 +96,14 @@ All stages left of the viewport run inside the compiled Python backend `.exe` (t
 
 ### VTK
 **Role:** The foundational visualization/data-model toolkit. Everything else in this section is built on it.
-**Used for:** Reading solver output (via meshio-converted files), representing simulation fields (scalar/vector fields on unstructured meshes) in memory, and providing the actual rendering pipeline (filters, mappers, renderers) that produces the pixels for contour plots, streamlines, cutting planes, etc.
-**Layer:** Python backend (as a dependency of PyVista) — VTK does the heavy data processing (isosurfaces, slicing, interpolation) server-side; only the final geometry/pixel data needed for display crosses into the frontend.
+**Used for:** Reading normalized solver/result artifacts, representing simulation fields (scalar/vector fields on unstructured meshes) in memory, and providing the actual rendering pipeline (filters, mappers, renderers) for contours, streamlines, cutting planes, and derived fields.
+**Layer:** Disposable backend post-processing worker. VTK does the heavy processing; only decimated geometry, field chunks, and display metadata cross into the frontend.
 **Why not reimplemented:** VTK is the industry-standard scientific visualization pipeline (used by ParaView, itself, and most engineering visualization software); its filter/mapper architecture represents decades of accumulated scientific-visualization algorithms.
 
 ### PyVista
 **Role:** Pythonic wrapper around VTK. This is the actual API the backend code calls — not raw VTK.
 **Used for:** All backend-side post-processing logic: loading result fields, computing derived quantities (vorticity, wall shear stress, etc.), generating contour/streamline/slice geometry, and exporting simplified/decimated meshes for the frontend 3D viewport.
-**Layer:** Python backend.
+**Layer:** Disposable backend post-processing worker, with derived artifacts cached by input and visualization recipe.
 **Why not reimplemented:** PyVista exists specifically to make VTK's notoriously verbose C++-style API usable from application code without losing any of VTK's capability — using VTK directly would mean reimplementing PyVista's convenience layer for no benefit.
 
 ### ParaView
@@ -129,19 +140,19 @@ All stages left of the viewport run inside the compiled Python backend `.exe` (t
 
 | # | Dependency | Pipeline stage | Runs in |
 |---|---|---|---|
-| 1 | FreeCAD | Geometry / CAD | Backend `.exe` |
-| 2 | Gmsh | Mesh generation | Backend `.exe` |
-| 3 | meshio | Format conversion (cross-cutting) | Backend `.exe` |
+| 1 | FreeCAD | Geometry / CAD | Supervised FreeCADCmd worker |
+| 2 | Gmsh | Route-A meshing / Route-B surface preparation | Supervised mesh worker |
+| 3 | meshio | On-demand interchange import/export | Mesh or post worker |
 | 4 | OpenFOAM | CFD solve | Backend-supervised process |
-| 5 | OpenMDAO | Optimization orchestration | Backend `.exe` |
-| 6 | Nevergrad | Black-box optimizer | Backend `.exe` |
-| 7 | PhysicsNeMo | ML surrogate framework | Backend `.exe` (GPU if available) |
-| 8 | PhysicsNeMo-CFD | CFD-specific surrogate models | Backend `.exe` (GPU if available) |
-| 9 | VTK | Data model / rendering pipeline | Backend `.exe` |
-| 10 | PyVista | Post-processing API | Backend `.exe` |
+| 5 | OpenMDAO | Optimization orchestration | Dedicated optimization worker |
+| 6 | Nevergrad | Black-box optimization strategy | Dedicated optimization worker |
+| 7 | PhysicsNeMo | ML surrogate framework | Isolated local GPU worker |
+| 8 | PhysicsNeMo-CFD | CFD-specific surrogate models | Isolated local GPU worker |
+| 9 | VTK | Data model / rendering pipeline | Disposable post-processing worker |
+| 10 | PyVista | Post-processing API | Disposable post-processing worker |
 | 11 | ParaView | Batch/headless post-processing | Backend-supervised process |
 | 12 | three.js | 3D rendering | Frontend (Tauri webview) |
 | 13 | react-three-fiber | React ↔ three.js bridge | Frontend (Tauri webview) |
 | 14 | drei | Viewport UI helpers | Frontend (Tauri webview) |
 
-**Pattern to notice:** everything computational and data-heavy (1–11) stays in the Python backend, entirely off-limits to the user and never exposed as a network service. Only the final, already-processed, already-decimated visual result (12–14) crosses into the UI layer — which is exactly the boundary that keeps this a native desktop app rather than a disguised local web server.
+**Pattern to notice:** everything computational and data-heavy (1–11) is orchestrated by HX CFD's private local service and runs in the appropriate isolated local worker; it remains off-limits to the ordinary user workflow and is never a user-operated network service. Only final, already-processed, decimated visual geometry and field metadata cross into the UI layer — the boundary that keeps this a native desktop application rather than a disguised local web server.

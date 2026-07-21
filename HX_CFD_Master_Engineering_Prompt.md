@@ -37,7 +37,8 @@ HX CFD is a **native Windows desktop application**, not a web app running in a b
 | **Desktop shell** | **Tauri** (Rust core) — native window, native menus, native dialogs, native window management, tray icon, process supervision. |
 | **UI layer** | Existing **React + three.js / react-three-fiber / drei** frontend, rendered inside Tauri's native webview (WRY/WebView2 on Windows) — not a browser tab, not exposed to the OS as a browser-navigable page. |
 | **Compute backend** | **Python**, compiled to a **standalone `.exe` via PyInstaller or Nuitka** — no system Python required, no interpreter exposed, ships as a native sidecar binary managed by the Rust core. |
-| **Frontend ↔ backend transport** | Local IPC only (Tauri commands + a private local socket/pipe for the Python sidecar). **No user-facing localhost.** Any HTTP-like transport used internally is an implementation detail bound to `127.0.0.1` on a random/ephemeral port, spawned and torn down by the Rust core, never surfaced in UI, never required to be typed by a user. |
+| **Application service** | **FastAPI** runs inside the managed Python sidecar as the typed local service layer. It is not an independently deployed web service and is never started, addressed, or authenticated by an engineer. |
+| **Frontend ↔ backend transport** | Local IPC only (typed Tauri commands/events + a per-session authenticated named pipe or private socket for the Python sidecar). **No user-facing localhost.** Any FastAPI HTTP transport is an internal implementation detail bound to loopback on a random/ephemeral port; its address and token never reach the UI or user. |
 | **Installer** | **Inno Setup**, structured as a **small bootstrapper `.exe`** — not a monolithic installer. |
 | **Dependency delivery** | Only **3 true install-time dependencies** (OpenFOAM, FreeCAD, ParaView) bundled as **individually checksummed ZIP archives**, shipped in a **payload folder alongside the bootstrapper** (USB / DVD-ISO / local network share / same folder as the installer). Fully offline-capable. No internet required at install time. The other **11 items** are build-time only: **8 Python packages** (Gmsh, meshio, OpenMDAO, Nevergrad, VTK, PyVista, PhysicsNeMo, PhysicsNeMo-CFD) are pip-installed on the dev machine and baked into `hxcfd_backend.exe` by PyInstaller/Nuitka; **3 frontend packages** (three.js, react-three-fiber, drei) are compiled into `hxcfd.exe`'s webview assets via `npm run build`. None of the 11 are ever ZIPs in the installer payload. See Section 4 for the full three-tier split. |
 | **Verification unit** | Per-archive (per-dependency), not per-installer — enables resume, repair, rollback, and corruption detection at the correct granularity. |
@@ -176,3 +177,20 @@ For every future request in this project:
 - Default to the architecture in Section 3 unless explicitly told to change it.
 - If a request would reintroduce a browser-only pattern (e.g., "open this in the browser," "hit this localhost URL manually," "user pastes this into a webpage"), stop and flag it rather than implementing it.
 - If a request is ambiguous about which of the 3 install-time dependencies or 11 build-time packages, or which installer stage, it touches, ask before generating code rather than guessing.
+
+---
+
+## 9. Phase 11 — Local-First Integration Contract
+
+HX-CFD-Local-First-Integration-Architecture.md is the authoritative execution contract for the fourteen repositories. It resolves integration details that this deployment-focused document intentionally does not expand:
+
+- Tauri/Rust owns session lifecycle, child-process handles, Windows Job Object containment, cancellation, and crash recovery. The UI does not spawn engineering tools and the Python sidecar does not outlive its desktop session.
+- FastAPI is a private managed service inside the local sidecar. It preserves typed API/service boundaries for implementation and testability without turning HX CFD into a browser-first or localhost-operated product.
+- Local project storage is immutable, content-addressed, and separate from Program Files. A project owns project.sqlite, a schema/version manifest, artifacts, references, and raw/structured job logs.
+- All engineering work passes validated recipes and artifact references between isolated workers. FreeCAD, Gmsh, OpenFOAM/MPI, ParaView, and GPU ML workloads have explicit process and memory boundaries.
+- Job state is durable: QUEUED → STAGING → RUNNING → VALIDATING → PUBLISHING → SUCCEEDED, with explicit failed, canceled, and orphaned states. Process exit alone never establishes success.
+- HX CFD has two versioned meshing routes. Route A uses Gmsh and OpenFOAM gmshToFoam; Route B uses OpenFOAM blockMesh/snappyHexMesh. meshio is an interchange utility and must not be used as the canonical .msh to polyMesh converter.
+- Meshing is the product flagship: semantic patch preservation, solver-aware validation, deterministic repair, boundary-layer evidence, diagnostics, and provenance are HX CFD responsibilities. Repositories supply engines, not the user workflow.
+- AI is optional and advisory. Local or remote adapters can make recommendations, but no AI availability, feature deletion, physical-boundary mapping, quality waiver, wall-treatment choice, or final engineering acceptance may be automated.
+
+Every engineering capability is complete only when it starts from HX CFD.exe, works without internet, requires no manual backend/tool launch, preserves local provenance, and presents a usable HX workflow rather than repository-specific controls.
