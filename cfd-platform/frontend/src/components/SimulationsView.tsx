@@ -46,7 +46,6 @@ export function SimulationsView() {
   const [projects, setProjects] = useState<Project[]>([])
   const [meshes, setMeshes] = useState<Mesh[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'list' | 'create'>('list')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedSimulation, setSelectedSimulation] = useState<Simulation | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
@@ -689,7 +688,7 @@ relaxationFactors
                   </button>
                 )}
                 {selectedSimulation.status === 'completed' && (
-                  <button className="btn btn-primary" onClick={() => { setShowDetailModal(false); setActiveTab('post'); }}>
+                  <button className="btn btn-primary" onClick={() => { setDetailTab('post'); setShowDetailModal(false); }}>
                     📈 Post-Processing
                   </button>
                 )}

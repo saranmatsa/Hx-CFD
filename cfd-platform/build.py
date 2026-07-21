@@ -24,7 +24,10 @@ def run_command(cmd, cwd=None, env=None):
 
 def check_python():
     """Check if Python is available."""
-    python_cmd = "python" if sys.platform == "win32" else "python3"
+    # Build with the interpreter that started this script. Resolving a second
+    # Python executable from PATH can select a different site-packages tree
+    # and produce a sidecar missing FastAPI or CFD engines.
+    python_cmd = sys.executable
     result = run_command([python_cmd, "--version"])
     if result.returncode != 0:
         print("Python not found!")
@@ -59,12 +62,13 @@ def build_backend(python_cmd, backend_dir, spec_file, output_dir, work_dir, prof
         "--noconfirm",
         "--distpath", str(output_dir),
         "--workpath", str(work_dir / "build"),
-        "--specpath", str(work_dir),
     ]
     
-    if profile == "release":
-        cmd.extend(["--strip", "--optimize=2"])
-    
+    # A spec file owns executable options such as UPX/strip. PyInstaller
+    # rejects ``--strip`` and ``--optimize`` when a ``.spec`` argument is
+    # present, which previously made every release sidecar build fail before
+    # the Tauri package could contain a current backend.
+
     cmd.append(str(spec_file))
     
     result = run_command(cmd, cwd=backend_dir)
@@ -74,7 +78,7 @@ def build_backend(python_cmd, backend_dir, spec_file, output_dir, work_dir, prof
 def verify_build(output_dir):
     """Verify the build produced the expected executable."""
     exe_name = "cfd-backend.exe" if sys.platform == "win32" else "cfd-backend"
-    exe_path = output_dir / "cfd-backend" / exe_name
+    exe_path = output_dir / exe_name
     
     if exe_path.exists():
         print(f"Build successful! Executable at: {exe_path}")
@@ -95,6 +99,10 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--work-dir", type=Path, required=True)
     args = parser.parse_args()
+    args.backend_dir = args.backend_dir.resolve()
+    args.spec_file = args.spec_file.resolve()
+    args.output_dir = args.output_dir.resolve()
+    args.work_dir = args.work_dir.resolve()
     
     print("=" * 60)
     print("Building CFD Platform Python Backend Sidecar")

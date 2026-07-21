@@ -42,7 +42,7 @@ export function MeshesView() {
   const [loading, setLoading] = useState(true)
   const [selectedMesh, setSelectedMesh] = useState<Mesh | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
-  const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [, setShowGenerateModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'list' | 'generate'>('list')
 
   const [generationParams, setGenerationParams] = useState<MeshGenerationParams>({

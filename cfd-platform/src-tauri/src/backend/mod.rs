@@ -3,6 +3,8 @@
 //! Manages the Python backend process.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tauri::{AppHandle, Manager};
@@ -53,6 +55,8 @@ pub struct BackendManager {
     pub pid: Option<u32>,
     /// Backend executable path
     pub executable: PathBuf,
+    /// Retained child handle for supervised lifecycle management.
+    pub child: Option<std::process::Child>,
 }
 
 impl Default for BackendManager {
@@ -61,6 +65,7 @@ impl Default for BackendManager {
             status: BackendStatus::NotRunning,
             pid: None,
             executable: PathBuf::from("bin/backend/hx-cfd-backend.exe"),
+            child: None,
         }
     }
 }
@@ -97,10 +102,7 @@ impl BackendManager {
         
         // Set up environment variables
         let mut cmd = Command::new(&self.executable);
-        cmd.env("HX_CFD_DATA_DIR", &config.data_dir);
-        cmd.env("HX_CFD_LOG_DIR", &config.log_dir);
-        cmd.env("HX_CFD_DEPS_DIR", &config.dependencies_dir);
-        cmd.env("RUST_LOG", "info");
+        self.configure_local_environment(&mut cmd, config);
         
         // Redirect stdout and stderr to log files
         let log_file = config.log_dir.join("backend.log");
@@ -111,6 +113,7 @@ impl BackendManager {
         let child = cmd.spawn()?;
         let pid = child.id();
         
+        self.child = Some(child);
         self.pid = Some(pid);
         self.status = BackendStatus::Running;
         
@@ -135,30 +138,9 @@ impl BackendManager {
         if let Some(pid) = self.pid {
             logging::log_info(&format!("Stopping backend process with PID: {}", pid));
             
-            #[cfg(windows)]
-            {
-                let output = Command::new("taskkill")
-                    .args(["/PID", &pid.to_string(), "/F"])
-                    .output()?;
-                
-                if !output.status.success() {
-                    let error = String::from_utf8_lossy(&output.stderr);
-                    logging::log_error(&format!("Failed to stop backend: {}", error));
-                    return Err(HxCfdError::Backend(format!("Failed to stop backend: {}", error)));
-                }
-            }
-            
-            #[cfg(not(windows))]
-            {
-                let output = Command::new("kill")
-                    .args(["-9", &pid.to_string()])
-                    .output()?;
-                
-                if !output.status.success() {
-                    let error = String::from_utf8_lossy(&output.stderr);
-                    logging::log_error(&format!("Failed to stop backend: {}", error));
-                    return Err(HxCfdError::Backend(format!("Failed to stop backend: {}", error)));
-                }
+            self.stop_process_tree(pid)?;
+            if let Some(mut child) = self.child.take() {
+                let _ = child.wait();
             }
             
             self.pid = None;
@@ -184,9 +166,120 @@ impl BackendManager {
     
     /// Send a command to the backend via stdin
     pub fn send_command(&self, command: &str) -> HxCfdResult<()> {
-        // This would require a pipe to stdin, which is more complex
-        // For now, we just log the command
-        logging::log_info(&format!("Backend command: {}", command));
+        Err(HxCfdError::Backend(format!(
+            "Unsupported raw backend command: {}. Use a typed desktop contract instead.",
+            command
+        )))
+    }
+
+    /// Query the canonical fourteen-engine inventory through a private local contract.
+    pub fn engine_inventory(&self, config: &AppConfig) -> HxCfdResult<Value> {
+        self.run_local_contract(config, &["--engine-inventory"], None)
+    }
+
+    /// Read a project's local workflow state through the managed backend executable.
+    pub fn workflow_snapshot(&self, config: &AppConfig, project_id: &str) -> HxCfdResult<Value> {
+        self.run_local_contract(config, &["--workflow-snapshot", project_id], None)
+    }
+
+    /// Persist a semantic workflow recipe without exposing a localhost endpoint to the UI.
+    pub fn configure_workflow_stage(
+        &self,
+        config: &AppConfig,
+        project_id: &str,
+        stage_id: &str,
+        recipe: &Value,
+    ) -> HxCfdResult<Value> {
+        let payload = serde_json::to_string(recipe)
+            .map_err(|error| HxCfdError::Backend(format!("Unable to serialize workflow recipe: {}", error)))?;
+        self.run_local_contract(
+            config,
+            &["--workflow-config", project_id, stage_id],
+            Some(&payload),
+        )
+    }
+
+    fn run_local_contract(
+        &self,
+        config: &AppConfig,
+        arguments: &[&str],
+        payload: Option<&str>,
+    ) -> HxCfdResult<Value> {
+        if !self.executable.exists() {
+            return Err(HxCfdError::Backend(format!(
+                "Backend executable not found at {:?}",
+                self.executable
+            )));
+        }
+
+        let mut command = Command::new(&self.executable);
+        command
+            .args(arguments)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        self.configure_local_environment(&mut command, config);
+        let mut child = command.spawn()?;
+        if let Some(payload) = payload {
+            if let Some(stdin) = child.stdin.as_mut() {
+                stdin.write_all(payload.as_bytes())?;
+            }
+        }
+        let output = child.wait_with_output()?;
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            return Err(HxCfdError::Backend(format!(
+                "Local backend contract failed: {}",
+                error.trim()
+            )));
+        }
+        serde_json::from_slice(&output.stdout).map_err(|error| {
+            HxCfdError::Backend(format!(
+                "Local backend contract returned invalid JSON: {}",
+                error
+            ))
+        })
+    }
+
+    fn configure_local_environment(&self, command: &mut Command, config: &AppConfig) {
+        command
+            .env("DATA_DIR", &config.data_dir)
+            .env("LOGS_DIR", &config.log_dir)
+            .env("PROJECTS_DIR", config.data_dir.join("projects"))
+            .env("TEMP_DIR", config.cache_dir.join("tmp"))
+            .env("CACHE_DIR", &config.cache_dir)
+            .env("OPENFOAM_PATH", config.openfoam_path())
+            .env("GMSH_PATH", config.gmsh_path())
+            .env("PARAVIEW_PATH", config.paraview_path())
+            .env("FREECAD_PATH", config.freecad_path())
+            .env("RUST_LOG", "info");
+    }
+
+    fn stop_process_tree(&self, pid: u32) -> HxCfdResult<()> {
+        #[cfg(windows)]
+        {
+            let output = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .output()?;
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(&output.stderr);
+                logging::log_error(&format!("Failed to stop backend: {}", error));
+                return Err(HxCfdError::Backend(format!("Failed to stop backend: {}", error)));
+            }
+        }
+
+        #[cfg(not(windows))]
+        {
+            let output = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output()?;
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(&output.stderr);
+                logging::log_error(&format!("Failed to stop backend: {}", error));
+                return Err(HxCfdError::Backend(format!("Failed to stop backend: {}", error)));
+            }
+        }
+
         Ok(())
     }
 }

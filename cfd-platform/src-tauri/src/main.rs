@@ -76,6 +76,9 @@ fn main() {
             get_backend_status,
             start_backend,
             stop_backend,
+            get_engine_inventory,
+            get_workflow_snapshot,
+            configure_workflow_stage,
             // Window commands
             show_main_window,
             hide_main_window,

@@ -11,29 +11,25 @@
 mod backend;
 mod commands;
 
-use backend::{BackendLog, BackendManager, BackendStatus};
+use backend::BackendManager;
 use commands::AppState;
 use std::sync::Arc;
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
 fn main() {
     // Initialize logging
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Initialize backend manager
             let backend = Arc::new(BackendManager::new());
 
             // Store in app state
-            app.manage(AppState { backend: backend.clone() });
+            app.manage(AppState {
+                backend: backend.clone(),
+            });
 
             // Get app handle for async operations
             let app_handle = app.handle().clone();
@@ -49,6 +45,7 @@ fn main() {
 
             // Set up window event handlers
             let window = app.get_webview_window("main").unwrap();
+            let close_window = window.clone();
             let backend_clone = backend.clone();
             window.on_window_event(move |event| {
                 if let WindowEvent::CloseRequested { api, .. } = event {
@@ -56,7 +53,7 @@ fn main() {
                     api.prevent_close();
 
                     let backend = backend_clone.clone();
-                    let window = window.clone();
+                    let window = close_window.clone();
                     tauri::async_runtime::spawn(async move {
                         log::info!("Window close requested, stopping backend...");
                         if let Err(e) = backend.stop().await {
@@ -90,6 +87,19 @@ fn main() {
             commands::get_backend_logs,
             commands::check_backend_health,
             commands::restart_backend,
+            commands::get_engine_inventory,
+            commands::list_local_projects,
+            commands::create_local_project,
+            commands::open_local_project,
+            commands::rename_local_project,
+            commands::archive_local_project,
+            commands::delete_local_project,
+            commands::get_workflow_snapshot,
+            commands::list_workflow_artifacts,
+            commands::read_workflow_artifact,
+            commands::export_workflow_artifact,
+            commands::configure_workflow_stage,
+            commands::execute_workflow_stage,
             commands::get_system_info,
             commands::get_app_paths,
         ])

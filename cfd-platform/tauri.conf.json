@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.hxcfd.app",
   "build": {
-    "beforeDevCommand": "npm run build:frontend",
-    "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build:frontend",
+    "beforeDevCommand": "npm run dev -- --host 127.0.0.1 --port 5173",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../frontend/dist"
   },
   "app": {
@@ -22,7 +22,7 @@
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "visible": false
+        "visible": true
       }
     ],
     "security": {
@@ -37,14 +37,11 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.icns"
     ],
     "resources": [
-      "bin/backend/**/*"
-    ],
-    "externalBin": [
-      "bin/backend/hx-cfd-backend.exe"
+      "bin/backend/**/*",
+      "bin/backend-runtime/**/*"
     ],
     "windows": {
       "certificateThumbprint": null,
@@ -61,103 +58,8 @@
       "exceptionDomain": "",
       "frameworks": [],
       "providerShortName": null,
-      "signingIdentity": null,
-      "category": "public.app-category.developer-tools"
+      "signingIdentity": null
     },
-    "linux": {
-      "deb": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libayatana-appindicator3-1",
-          "librsvg2-common",
-          "python3",
-          "python3-venv",
-          "postgresql-client",
-          "redis-tools"
-        ]
-      },
-      "appimage": {
-        "depends": [
-          "libwebkit2gtk-4.1-0",
-          "libayatana-appindicator3-1",
-          "librsvg2-common",
-          "python3",
-          "python3-venv",
-          "postgresql-client",
-          "redis-tools"
-        ]
-      }
-    }
-  },
-  "plugins": {
-    "shell": {
-      "all": false,
-      "open": true,
-      "scope": {
-        "allowlist": [
-          {
-            "name": "backend",
-            "cmd": "bin/backend/hx-cfd-backend",
-            "args": true
-          },
-          {
-            "name": "openfoam",
-            "cmd": "dependencies/openfoam/bin/foamExec",
-            "args": true
-          },
-          {
-            "name": "gmsh",
-            "cmd": "dependencies/gmsh/bin/gmsh",
-            "args": true
-          },
-          {
-            "name": "paraview",
-            "cmd": "dependencies/paraview/bin/paraview",
-            "args": true
-          }
-        ]
-      }
-    },
-    "process": {
-      "all": false,
-      "scope": {
-        "allowlist": [
-          "backend"
-        ]
-      }
-    },
-    "fs": {
-      "all": false,
-      "scope": {
-        "allowlist": [
-          {
-            "path": "$APPDATA/hx-cfd/**"
-          },
-          {
-            "path": "$HOME/.hx-cfd/**"
-          },
-          {
-            "path": "$TEMP/hx-cfd/**"
-          },
-          {
-            "path": "dependencies/**"
-          }
-        ]
-      }
-    },
-    "dialog": {
-      "all": true,
-      "open": true,
-      "save": true
-    },
-    "notification": {
-      "all": true
-    },
-    "opener": {
-      "all": true
-    },
-    "os": {
-      "all": true
-    }
+    "linux": {}
   }
 }

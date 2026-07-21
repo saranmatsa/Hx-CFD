@@ -12,7 +12,6 @@
 ; Application constants
 #define DEPENDENCIES_DIR "dependencies"
 #define FRONTEND_DIR "frontend"
-#define BACKEND_EXE "backend.exe"
 #define PAYLOAD_DIR "..\payload"
 
 ; Colors
@@ -79,14 +78,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
-Name: "addtopath"; Description: "Add to system PATH"; GroupDescription: "System Integration:"; Flags: unchecked
-Name: "firewall"; Description: "Add Windows Firewall exception"; GroupDescription: "System Integration:"; Flags: checkedonce
 
 [Files]
 ; Main application files
-Source: "..\..\cfd-platform\src-tauri\target\release\HX CFD.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-Source: "..\..\cfd-platform\backend\dist\{#BACKEND_EXE}"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\..\cfd-platform\frontend\dist\*"; DestDir: "{app}\{#FRONTEND_DIR}"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "..\..\cfd-platform\target\release\cfd-platform-tauri.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+; The desktop manages a self-contained local Python runtime.  Shipping this
+; resource tree prevents the installed application from depending on a
+; developer machine's Python installation or an obsolete frozen sidecar.
+Source: "..\..\cfd-platform\bin\backend-runtime\*"; DestDir: "{app}\bin\backend-runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\cfd-platform\icons\*"; DestDir: "{app}\icons"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Dependency bundles (placeholders - actual files come from payload directory)
@@ -118,11 +117,6 @@ Root: HKLM; Subkey: "Software\{#MyAppPublisher}\{#MyAppName}"; ValueType: string
 
 ; Environment variables
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "HXCFD_HOME"; ValueData: "{app}"; Flags: preservestringtype
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "HXCFD_BACKEND"; ValueData: "{app}\{#BACKEND_EXE}"; Flags: preservestringtype; Tasks: addtopath
-
-; Windows Firewall
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"; ValueType: string; ValueName: "{#MyAppName} Backend"; ValueData: "v2.30|Action=Allow|Active=TRUE|Dir=In|Protocol=6|LocalPort=8000|Name={#MyAppName} Backend HTTP|"; Flags: uninsdeletevalue; Tasks: firewall
-Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"; ValueType: string; ValueName: "{#MyAppName} Backend Localhost"; ValueData: "v2.30|Action=Allow|Active=TRUE|Dir=In|Protocol=6|LocalPort=8000|RemoteIP=127.0.0.1|Name={#MyAppName} Backend Localhost|"; Flags: uninsdeletevalue; Tasks: firewall
 
 [Run]
 ; Launch app after install
@@ -130,8 +124,10 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [UninstallRun]
 ; Cleanup on uninstall
-Filename: "taskkill"; Parameters: "/F /IM ""{#BACKEND_EXE}"""; Flags: runhidden; RunOnceId: "StopBackend"
-Filename: "taskkill"; Parameters: "/F /IM ""{#MyAppExeName}"""; Flags: runhidden; RunOnceId: "StopApp"
+; `/T` terminates the private backend child together with the desktop shell;
+; never target `python.exe` globally because engineers may have unrelated
+; local Python work running.
+Filename: "taskkill"; Parameters: "/F /T /IM ""{#MyAppExeName}"""; Flags: runhidden; RunOnceId: "StopApp"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\dependencies"

@@ -6,6 +6,7 @@ and external service clients with proper lifecycle management.
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, Optional
@@ -16,6 +17,8 @@ from sqlalchemy.pool import NullPool
 
 from cfd_backend.core.config import Settings, get_settings
 from cfd_backend.core.logging import get_logger
+from cfd_backend.services.engine_registry import EngineRegistry
+from cfd_backend.services.workflow_service import LocalWorkflowService
 
 logger = get_logger(__name__)
 
@@ -277,6 +280,8 @@ class ServiceContainer:
         self.redis = RedisManager(self.settings)
         self.celery = CeleryManager(self.settings)
         self.tools = ExternalToolsManager(self.settings)
+        self.engines = EngineRegistry(self.settings)
+        self.workflow = LocalWorkflowService(self.settings, self.engines)
         self._initialized = False
     
     async def initialize(self) -> None:
@@ -289,16 +294,41 @@ class ServiceContainer:
         # Initialize database
         await self.db.create_tables()
         logger.info("Database initialized")
-        
-        # Check Redis
-        if await self.redis.ping():
-            logger.info("Redis connected")
+
+        # The managed desktop process exposes only the private workflow API.
+        # That workflow is intentionally local-first and uses
+        # ``EngineRegistry`` below as its single source of truth for tool
+        # availability.  Redis/Celery and the legacy ExternalToolsManager are
+        # not in that request path, so probing an unavailable Redis server or
+        # repeating executable discovery only delays every HX CFD launch.
+        # Keep those probes for the full, non-desktop REST application where
+        # the legacy services can still depend on them.
+        managed_desktop = os.environ.get("CFD_PLATFORM_TAURI") == "1"
+        if managed_desktop:
+            logger.info(
+                "Skipping optional legacy infrastructure probes for managed desktop workflow"
+            )
         else:
-            logger.warning("Redis not available")
-        
-        # Detect external tools
-        tools = await self.tools.detect_all()
-        logger.info("External tools detected", tools=tools)
+            # Check Redis
+            if await self.redis.ping():
+                logger.info("Redis connected")
+            else:
+                logger.warning("Redis not available")
+
+            # Detect external tools for legacy API consumers.  Desktop
+            # workflow requests use EngineRegistry directly below.
+            tools = await self.tools.detect_all()
+            logger.info("External tools detected", tools=tools)
+
+        engine_inventory = await self.engines.inventory(refresh=True)
+        unavailable_engines = [
+            engine["id"] for engine in engine_inventory if engine["status"] == "unavailable"
+        ]
+        logger.info(
+            "Engineering engine inventory initialized",
+            available=len(engine_inventory) - len(unavailable_engines),
+            unavailable=unavailable_engines,
+        )
         
         self._initialized = True
         logger.info("All services initialized")
@@ -312,6 +342,10 @@ class ServiceContainer:
         
         self._initialized = False
         logger.info("Services shut down")
+
+    async def is_ready(self) -> bool:
+        """Return local service readiness without requiring Redis or cloud access."""
+        return self._initialized
     
     @asynccontextmanager
     async def lifespan(self) -> AsyncGenerator["ServiceContainer", None]:

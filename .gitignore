@@ -60,8 +60,7 @@ env/
 .virtualenv/
 
 # PyInstaller
-*.manifest
-*.spec
+# Keep application manifests and specs tracked when they are source files.
 
 # Database files
 *.db
@@ -75,23 +74,32 @@ env/
 # Build output directories
 target/
 target2/
-
-# Cargo lock file (usually not needed in library crates)
-Cargo.lock
+cfd-platform/target/
+cfd-platform/target2/
+cfd-platform/bin/
+cfd-platform/gen/
+cfd-platform/tmp/
+cfd-platform/cache/
+cfd-platform/logs/
 
 # -----------------------------------------------------------------------------
 # Node.js / React / Frontend
 # -----------------------------------------------------------------------------
 # Dependencies
 node_modules/
+cfd-platform/frontend/node_modules/
 
 # Build outputs
 cfd-platform/frontend/dist/
 cfd-platform/frontend/build/
 cfd-platform/frontend/.vite/
+cfd-platform/dist/
+cfd-platform/build/
+cfd-platform/out/
 
 # Package manager lock files
-package-lock.json
+/package-lock.json
+cfd-platform/package-lock.json
 yarn.lock
 pnpm-lock.yaml
 bun.lockb
@@ -115,6 +123,10 @@ logs/
 *.log
 cache/
 *.cache
+cfd-platform/backend/.pytest_cache/
+cfd-platform/backend/.mypy_cache/
+cfd-platform/backend/.ruff_cache/
+cfd-platform/backend/**/__pycache__/
 
 # -----------------------------------------------------------------------------
 # OS-specific
@@ -134,3 +146,42 @@ cfd-platform/installer/output/
 *.msi
 *.dmg
 *.AppImage
+
+# -----------------------------------------------------------------------------
+# HX CFD Local Runtime State
+# -----------------------------------------------------------------------------
+cfd-platform/backend/.venv/
+cfd-platform/backend/data/
+cfd-platform/backend/projects/
+cfd-platform/backend/*.db
+cfd-platform/backend/*.sqlite
+cfd-platform/backend/*.sqlite3
+cfd-platform/data/
+cfd-platform/projects/
+
+# CFD case, mesh, and post-processing outputs
+*.case
+*.foam
+*.vtk
+*.vtu
+*.vtp
+*.msh
+*.brep
+*.step
+*.stp
+*.iges
+*.igs
+
+# Local machine configuration and secrets
+.env
+.env.*
+!.env.example
+cfd-platform/.env
+cfd-platform/.env.*
+!cfd-platform/.env.example
+
+# Large locally built engineering dependencies
+OpenFOAM-*/
+ThirdParty-*/
+freecad-build/
+paraview-build/

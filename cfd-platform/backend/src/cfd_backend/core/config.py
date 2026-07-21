@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     cache_dir: Path = Field(default=Path("./cache"), alias="CACHE_DIR")
     
     # External tools (auto-detected or configured)
+    freecad_path: Optional[Path] = Field(default=None, alias="FREECAD_PATH")
     openfoam_path: Optional[Path] = Field(default=None, alias="OPENFOAM_PATH")
     openfoam_version: str = Field(default="v2306", alias="OPENFOAM_VERSION")
     gmsh_path: Optional[Path] = Field(default=None, alias="GMSH_PATH")
@@ -96,6 +97,8 @@ class Settings(BaseSettings):
     # AI/ML
     physicsnemo_enabled: bool = Field(default=True, alias="PHYSICSNEMO_ENABLED")
     physicsnemo_model_path: Optional[Path] = Field(default=None, alias="PHYSICSNEMO_MODEL_PATH")
+    physicsnemo_python: Optional[Path] = Field(default=None, alias="PHYSICSNEMO_PYTHON")
+    physicsnemo_cfd_path: Optional[Path] = Field(default=None, alias="PHYSICSNEMO_CFD_PATH")
     cuda_visible_devices: str = Field(default="0", alias="CUDA_VISIBLE_DEVICES")
     
     # Optimization

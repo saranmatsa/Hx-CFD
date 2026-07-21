@@ -255,13 +255,50 @@ class MeshService:
         return stats
 
     async def _validate_cgns_mesh(self, file_path: Path) -> Dict[str, Any]:
-        """Validate CGNS mesh file."""
+        """Validate CGNS mesh file using h5py (CGNS is HDF5-based)."""
         try:
-            import cgns
-            # Use CGNS library to validate
-            return {"valid": True, "element_count": 0, "node_count": 0, "boundary_count": 0}
+            import h5py
+
+            with h5py.File(str(file_path), "r") as f:
+                # CGNS files have a "CGNSLibraryVersion" attribute at root
+                if "CGNSLibraryVersion" not in f.attrs:
+                    return {"valid": False, "error": "Not a valid CGNS file: missing CGNSLibraryVersion"}
+
+                node_count = 0
+                element_count = 0
+                boundary_count = 0
+
+                def _visit(name, obj):
+                    nonlocal node_count, element_count, boundary_count
+                    # GridCoordinates nodes contain PointList data
+                    if "GridCoordinates" in name:
+                        for key in obj.keys():
+                            if "Coordinate" in key:
+                                ds = obj[key]
+                                if hasattr(ds, "shape") and len(ds.shape) >= 2:
+                                    node_count = max(node_count, ds.shape[1])
+                    # Zone nodes contain ElementConnectivity
+                    if "Zone" in name:
+                        for key in obj.keys():
+                            if "ElementConnectivity" in key:
+                                ds = obj[key]
+                                if hasattr(ds, "shape"):
+                                    element_count = max(element_count, ds.shape[0] if ds.shape else 0)
+                    # ZoneBC nodes contain boundary conditions
+                    if "ZoneBC" in name:
+                        boundary_count += len(obj.keys())
+
+                f.visititems(_visit)
+
+                return {
+                    "valid": True,
+                    "element_count": element_count,
+                    "node_count": node_count,
+                    "boundary_count": boundary_count,
+                }
         except ImportError:
-            return {"valid": True, "element_count": 0, "node_count": 0, "boundary_count": 0}
+            logger.warning("h5py not available for CGNS validation")
+            return {"valid": True, "element_count": 0, "node_count": 0, "boundary_count": 0, "warning": "h5py not available"}
         except Exception as e:
             return {"valid": False, "error": str(e)}
 
@@ -550,61 +587,657 @@ Physical Surface("walls") = {1, 2, 3, 4, 5, 6};
 
     async def _generate_openfoam_mesh(self, mesh: Mesh) -> Dict[str, Any]:
         """Generate mesh using OpenFOAM blockMesh/snappyHexMesh."""
-        # This would create blockMeshDict and run blockMesh
-        return {"success": False, "error": "OpenFOAM mesh generation not fully implemented"}
+        # Delegate to blockMesh implementation
+        return await self._generate_block_mesh(mesh)
 
     async def _generate_snappy_hex_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate mesh using snappyHexMesh."""
-        return {"success": False, "error": "snappyHexMesh generation not fully implemented"}
+        """Generate mesh using snappyHexMesh (requires OpenFOAM installed)."""
+        try:
+            import shutil
+            import subprocess
+
+            # Check if OpenFOAM is available
+            if not shutil.which("snappyHexMesh") and not os.environ.get("WM_PROJECT_DIR"):
+                return {
+                    "success": False,
+                    "error": "snappyHexMesh not available — OpenFOAM must be installed and sourced. "
+                             "Set WM_PROJECT_DIR or add OpenFOAM bin to PATH.",
+                }
+
+            case_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp(prefix="snappy_"))
+            case_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create minimal OpenFOAM case structure
+            for d in ["0", "constant", "constant/polyMesh", "system"]:
+                (case_dir / d).mkdir(parents=True, exist_ok=True)
+
+            # Write system/controlDict
+            control_dict = f"""\
+ FoamFile
+ {{
+     version 2.0;
+     format ascii;
+     class dictionary;
+     location "system";
+     object controlDict;
+ }}
+ application snappyHexMesh;
+ startFrom latestTime;
+ startTime 0;
+ stopAt endTime;
+ endTime 1;
+ deltaT 1;
+ writeControl timeStep;
+ writeInterval 1;
+ purgeWrite 0;
+ writeFormat ascii;
+ writePrecision 6;
+ writeCompression off;
+ timeFormat general;
+ timePrecision 6;
+ runTimeModifiable true;
+ """
+            (case_dir / "system" / "controlDict").write_text(control_dict)
+
+            # Write system/snappyHexMeshDict
+            params = mesh.mesh_parameters or {}
+            snappy_dict = f"""\
+ FoamFile
+ {{
+     version 2.0;
+     format ascii;
+     class dictionary;
+     location "system";
+     object snappyHexMeshDict;
+ }}
+ castellatedMesh true;
+ snap true;
+ addLayers false;
+ geometry
+ {{
+     domain
+     {{
+         type searchableBox;
+         min ({params.get("min_x", 0)} {params.get("min_y", 0)} {params.get("min_z", 0)});
+         max ({params.get("max_x", 1)} {params.get("max_y", 1)} {params.get("max_z", 1)});
+     }}
+ }}
+ castellatedMeshControls
+ {{
+     maxLocalCells 100000;
+     maxGlobalCells 2000000;
+     minRefinementCells 0;
+     maxLoadUnbalance 0.10;
+     nCellsBetweenLevels 3;
+     features ();
+     refinementSurfaces ();
+     refinementRegion {{
+         domain {{
+             mode inside;
+             levels ((1 1));
+         }}
+     }}
+     resolveFeatureAngle 30;
+     locationInMesh (0.5 0.5 0.5);
+     allowFreeStandingZoneFaces true;
+ }}
+ snapControls
+ {{
+     nSmoothPatch 3;
+     tolerance 1.0;
+     nRelaxIter 5;
+     nFeatureSnap 10;
+     implicitFeatureSnap false;
+     explicitFeatureSnap true;
+     multiRegionFeatureSnap false;
+ }}
+ addLayersControls {{}}
+ meshQualityControls
+ {{
+     maxNonOrtho 65;
+     maxBoundarySkewness 20;
+     maxInternalSkewness 4;
+     maxConcave 80;
+     minFlatness 0.5;
+     minVol 1e-13;
+     minArea -1;
+     minTwist 0.02;
+     minDeterminant 0.001;
+     minFaceWeight 0.05;
+     minVolRatio 0.01;
+     minTriangleQuality -1;
+     nSmoothScale 4;
+     errorReduction 0.75;
+     relaxed {{}}
+ }}
+ mergeTolerance 1e-6;
+ """
+            (case_dir / "system" / "snappyHexMeshDict").write_text(snappy_dict)
+
+            # Run blockMesh first to create background mesh
+            block_mesh_cmd = ["blockMesh", "-case", str(case_dir)]
+            # Write minimal blockMeshDict
+            block_dict = f"""\
+ FoamFile
+ {{
+     version 2.0;
+     format ascii;
+     class dictionary;
+     location "system";
+     object blockMeshDict;
+ }}
+ convertToMeters 1;
+ vertices
+ (
+     ({params.get("min_x", 0)} {params.get("min_y", 0)} {params.get("min_z", 0)})
+     ({params.get("max_x", 1)} {params.get("min_y", 0)} {params.get("min_z", 0)})
+     ({params.get("max_x", 1)} {params.get("max_y", 1)} {params.get("min_z", 0)})
+     ({params.get("min_x", 0)} {params.get("max_y", 1)} {params.get("min_z", 0)})
+     ({params.get("min_x", 0)} {params.get("min_y", 0)} {params.get("max_z", 1)})
+     ({params.get("max_x", 1)} {params.get("min_y", 0)} {params.get("max_z", 1)})
+     ({params.get("max_x", 1)} {params.get("max_y", 1)} {params.get("max_z", 1)})
+     ({params.get("min_x", 0)} {params.get("max_y", 1)} {params.get("max_z", 1)})
+ );
+ blocks
+ (
+     hex (0 1 2 3 4 5 6 7) ({params.get("nx", 10)} {params.get("ny", 10)} {params.get("nz", 10)}) simpleGrading (1 1 1)
+ );
+ edges ();
+ boundary ();
+ defaultPatch {{ name walls; type patch; }}
+ """
+            (case_dir / "system" / "blockMeshDict").write_text(block_dict)
+
+            proc = await asyncio.create_subprocess_exec(
+                *block_mesh_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                return {"success": False, "error": f"blockMesh failed: {stderr.decode()}"}
+
+            # Run snappyHexMesh
+            snappy_cmd = ["snappyHexMesh", "-case", str(case_dir), "-overwrite"]
+            proc = await asyncio.create_subprocess_exec(
+                *snappy_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                return {"success": False, "error": f"snappyHexMesh failed: {stderr.decode()}"}
+
+            # Count cells
+            poly_mesh_dir = case_dir / "constant" / "polyMesh"
+            n_cells = 0
+            owner_file = poly_mesh_dir / "owner"
+            if owner_file.exists():
+                with open(owner_file) as f:
+                    content = f.read()
+                    n_cells = content.count("(")  # rough estimate
+
+            return {
+                "success": True,
+                "method": "snappy_hex",
+                "case_dir": str(case_dir),
+                "cell_count": n_cells,
+                "message": "snappyHexMesh completed successfully",
+            }
+
+        except Exception as e:
+            logger.error(f"snappyHexMesh generation failed: {e}")
+            return {"success": False, "error": f"snappyHexMesh generation failed: {e}"}
 
     async def _generate_block_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate mesh using blockMesh."""
-        return {"success": False, "error": "blockMesh generation not fully implemented"}
+        """Generate mesh using OpenFOAM blockMesh (requires OpenFOAM installed)."""
+        try:
+            import shutil
+
+            # Check if OpenFOAM is available
+            if not shutil.which("blockMesh") and not os.environ.get("WM_PROJECT_DIR"):
+                return {
+                    "success": False,
+                    "error": "blockMesh not available — OpenFOAM must be installed and sourced. "
+                             "Set WM_PROJECT_DIR or add OpenFOAM bin to PATH.",
+                }
+
+            case_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp(prefix="block_"))
+            case_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create minimal OpenFOAM case structure
+            for d in ["0", "constant", "constant/polyMesh", "system"]:
+                (case_dir / d).mkdir(parents=True, exist_ok=True)
+
+            params = mesh.mesh_parameters or {}
+            nx = int(params.get("nx", 10))
+            ny = int(params.get("ny", 10))
+            nz = int(params.get("nz", 10))
+            min_x, min_y, min_z = float(params.get("min_x", 0)), float(params.get("min_y", 0)), float(params.get("min_z", 0))
+            max_x, max_y, max_z = float(params.get("max_x", 1)), float(params.get("max_y", 1)), float(params.get("max_z", 1))
+
+            # Write blockMeshDict
+            block_dict = f"""\
+ FoamFile
+ {{
+     version 2.0;
+     format ascii;
+     class dictionary;
+     location "system";
+     object blockMeshDict;
+ }}
+ convertToMeters 1;
+ vertices
+ (
+     ({min_x} {min_y} {min_z})
+     ({max_x} {min_y} {min_z})
+     ({max_x} {max_y} {min_z})
+     ({min_x} {max_y} {min_z})
+     ({min_x} {min_y} {max_z})
+     ({max_x} {min_y} {max_z})
+     ({max_x} {max_y} {max_z})
+     ({min_x} {max_y} {max_z})
+ );
+ blocks
+ (
+     hex (0 1 2 3 4 5 6 7) ({nx} {ny} {nz}) simpleGrading (1 1 1)
+ );
+ edges ();
+ boundary
+ (
+     inlet
+     {{
+         type patch;
+         faces ((0 4 7 3));
+     }}
+     outlet
+     {{
+         type patch;
+         faces ((1 2 6 5));
+     }}
+     walls
+     {{
+         type wall;
+         faces ((0 1 5 4) (3 7 6 2) (0 3 2 1) (4 5 6 7));
+     }}
+ );
+ mergePatchPairs ();
+ """
+            (case_dir / "system" / "blockMeshDict").write_text(block_dict)
+
+            # Run blockMesh
+            cmd = ["blockMesh", "-case", str(case_dir)]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                return {"success": False, "error": f"blockMesh failed: {stderr.decode()}"}
+
+            # Count cells
+            n_cells = nx * ny * nz
+
+            return {
+                "success": True,
+                "method": "block_mesh",
+                "case_dir": str(case_dir),
+                "cell_count": n_cells,
+                "message": "blockMesh completed successfully",
+            }
+
+        except Exception as e:
+            logger.error(f"blockMesh generation failed: {e}")
+            return {"success": False, "error": f"blockMesh generation failed: {e}"}
 
     async def _generate_cartesian_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate Cartesian mesh."""
-        return {"success": False, "error": "Cartesian mesh generation not implemented"}
+        """Generate Cartesian mesh using gmsh structured mesh."""
+        try:
+            import gmsh
+
+            params = mesh.mesh_parameters or {}
+            output_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / f"{mesh.name}_cartesian.msh"
+
+            gmsh.initialize()
+            try:
+                gmsh.model.add(mesh.name)
+
+                lx = float(params.get("length", 1.0))
+                ly = float(params.get("width", 1.0))
+                lz = float(params.get("height", 1.0))
+                gmsh.model.occ.addBox(0, 0, 0, lx, ly, lz)
+                gmsh.model.occ.synchronize()
+
+                # Set structured mesh with TransfiniteAuto
+                mesh_size = float(params.get("mesh_size", 0.1))
+                gmsh.option.setNumber("Mesh.MeshSizeMin", mesh_size)
+                gmsh.option.setNumber("Mesh.MeshSizeMax", mesh_size)
+                gmsh.option.setNumber("Mesh.Algorithm", 1)  # Regular
+                gmsh.option.setNumber("Mesh.Algorithm3D", 1)  # Delaunay regular
+
+                # Set transfinite on all surfaces/volumes for structured Cartesian
+                surfaces = gmsh.model.getEntities(2)
+                for s in surfaces:
+                    gmsh.model.mesh.setTransfiniteSurface(s[1])
+                volumes = gmsh.model.getEntities(3)
+                for v in volumes:
+                    gmsh.model.mesh.setTransfiniteVolume(v[1])
+
+                gmsh.model.mesh.generate(3)
+                gmsh.write(str(output_file))
+
+                node_count = gmsh.model.mesh.getNodeCount()
+                element_count = gmsh.model.mesh.getElementCount()
+
+                return {
+                    "success": True,
+                    "method": "cartesian",
+                    "file_path": str(output_file),
+                    "node_count": node_count,
+                    "element_count": element_count,
+                }
+            finally:
+                gmsh.finalize()
+
+        except ImportError:
+            return {"success": False, "error": "gmsh not available for Cartesian mesh generation"}
+        except Exception as e:
+            logger.error(f"Cartesian mesh generation failed: {e}")
+            return {"success": False, "error": f"Cartesian mesh generation failed: {e}"}
 
     async def _generate_octree_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate octree-based mesh."""
-        return {"success": False, "error": "Octree mesh generation not implemented"}
+        """Generate octree-based mesh using gmsh with refinement."""
+        try:
+            import gmsh
+
+            params = mesh.mesh_parameters or {}
+            output_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / f"{mesh.name}_octree.msh"
+
+            gmsh.initialize()
+            try:
+                gmsh.model.add(mesh.name)
+
+                lx = float(params.get("length", 1.0))
+                ly = float(params.get("width", 1.0))
+                lz = float(params.get("height", 1.0))
+                gmsh.model.occ.addBox(0, 0, 0, lx, ly, lz)
+                gmsh.model.occ.synchronize()
+
+                # Octree-like behavior: use mesh size fields with distance-based refinement
+                mesh_size = float(params.get("mesh_size", 0.1))
+                min_size = float(params.get("min_mesh_size", mesh_size * 0.25))
+                max_size = float(params.get("max_mesh_size", mesh_size * 2.0))
+
+                # Create a distance field from surfaces
+                surfaces = gmsh.model.getEntities(2)
+                if surfaces:
+                    dist_field = gmsh.model.mesh.field.add("Distance")
+                    gmsh.model.mesh.field.setNumbers(dist_field, "SurfacesList", [s[1] for s in surfaces])
+
+                    # Threshold field for refinement near surfaces
+                    thresh_field = gmsh.model.mesh.field.add("Threshold")
+                    gmsh.model.mesh.field.setNumber(thresh_field, "InField", dist_field)
+                    gmsh.model.mesh.field.setNumber(thresh_field, "SizeMin", min_size)
+                    gmsh.model.mesh.field.setNumber(thresh_field, "SizeMax", max_size)
+                    gmsh.model.mesh.field.setNumber(thresh_field, "DistMin", mesh_size)
+                    gmsh.model.mesh.field.setNumber(thresh_field, "DistMax", mesh_size * 5)
+                    gmsh.model.mesh.field.setAsBackgroundMesh(thresh_field)
+
+                gmsh.option.setNumber("Mesh.Algorithm3D", 7)  # HXT (octree-like)
+                gmsh.model.mesh.generate(3)
+                gmsh.write(str(output_file))
+
+                node_count = gmsh.model.mesh.getNodeCount()
+                element_count = gmsh.model.mesh.getElementCount()
+
+                return {
+                    "success": True,
+                    "method": "octree",
+                    "file_path": str(output_file),
+                    "node_count": node_count,
+                    "element_count": element_count,
+                }
+            finally:
+                gmsh.finalize()
+
+        except ImportError:
+            return {"success": False, "error": "gmsh not available for octree mesh generation"}
+        except Exception as e:
+            logger.error(f"Octree mesh generation failed: {e}")
+            return {"success": False, "error": f"Octree mesh generation failed: {e}"}
 
     async def _generate_delaunay_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate Delaunay mesh."""
-        return {"success": False, "error": "Delaunay mesh generation not implemented"}
+        """Generate Delaunay mesh using gmsh API (Algorithm 6 = Frontal-Delaunay)."""
+        try:
+            import gmsh
+
+            params = mesh.mesh_parameters or {}
+            output_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / f"{mesh.name}_delaunay.msh"
+
+            gmsh.initialize()
+            try:
+                gmsh.model.add(mesh.name)
+
+                geom_type = params.get("geometry_type", "box")
+                if geom_type == "box":
+                    lx = float(params.get("length", 1.0))
+                    ly = float(params.get("width", 1.0))
+                    lz = float(params.get("height", 1.0))
+                    gmsh.model.occ.addBox(0, 0, 0, lx, ly, lz)
+                elif geom_type == "sphere":
+                    r = float(params.get("radius", 0.5))
+                    gmsh.model.occ.addBall(0, 0, 0, r)
+                elif geom_type == "cylinder":
+                    r = float(params.get("radius", 0.5))
+                    h = float(params.get("height", 1.0))
+                    gmsh.model.occ.addCylinder(0, 0, 0, 0, 0, h, r)
+                else:
+                    gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
+
+                gmsh.model.occ.synchronize()
+
+                mesh_size = float(params.get("mesh_size", 0.1))
+                gmsh.option.setNumber("Mesh.MeshSizeMin", mesh_size)
+                gmsh.option.setNumber("Mesh.MeshSizeMax", mesh_size)
+                # Algorithm 6 = Frontal-Delaunay for 2D, Algorithm 1 = Delaunay for 3D
+                gmsh.option.setNumber("Mesh.Algorithm", 6)
+                gmsh.option.setNumber("Mesh.Algorithm3D", 1)  # Delaunay
+
+                gmsh.model.mesh.generate(3)
+                gmsh.write(str(output_file))
+
+                node_count = gmsh.model.mesh.getNodeCount()
+                element_count = gmsh.model.mesh.getElementCount()
+
+                return {
+                    "success": True,
+                    "method": "delaunay",
+                    "file_path": str(output_file),
+                    "node_count": node_count,
+                    "element_count": element_count,
+                }
+            finally:
+                gmsh.finalize()
+
+        except ImportError:
+            return {"success": False, "error": "gmsh not available for Delaunay mesh generation"}
+        except Exception as e:
+            logger.error(f"Delaunay mesh generation failed: {e}")
+            return {"success": False, "error": f"Delaunay mesh generation failed: {e}"}
 
     async def _generate_advancing_front_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate advancing front mesh."""
-        return {"success": False, "error": "Advancing front mesh generation not implemented"}
+        """Generate advancing front mesh using gmsh API (Algorithm 6 = Frontal-Delaunay)."""
+        try:
+            import gmsh
+
+            params = mesh.mesh_parameters or {}
+            output_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / f"{mesh.name}_advfront.msh"
+
+            gmsh.initialize()
+            try:
+                gmsh.model.add(mesh.name)
+
+                geom_type = params.get("geometry_type", "box")
+                if geom_type == "box":
+                    lx = float(params.get("length", 1.0))
+                    ly = float(params.get("width", 1.0))
+                    lz = float(params.get("height", 1.0))
+                    gmsh.model.occ.addBox(0, 0, 0, lx, ly, lz)
+                elif geom_type == "sphere":
+                    r = float(params.get("radius", 0.5))
+                    gmsh.model.occ.addBall(0, 0, 0, r)
+                elif geom_type == "cylinder":
+                    r = float(params.get("radius", 0.5))
+                    h = float(params.get("height", 1.0))
+                    gmsh.model.occ.addCylinder(0, 0, 0, 0, 0, h, r)
+                else:
+                    gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
+
+                gmsh.model.occ.synchronize()
+
+                mesh_size = float(params.get("mesh_size", 0.1))
+                gmsh.option.setNumber("Mesh.MeshSizeMin", mesh_size)
+                gmsh.option.setNumber("Mesh.MeshSizeMax", mesh_size)
+                # Algorithm 6 = Frontal-Delaunay (advancing front variant)
+                gmsh.option.setNumber("Mesh.Algorithm", 6)
+                gmsh.option.setNumber("Mesh.Algorithm3D", 10)  # HXT (advancing front-like)
+
+                gmsh.model.mesh.generate(3)
+                gmsh.write(str(output_file))
+
+                node_count = gmsh.model.mesh.getNodeCount()
+                element_count = gmsh.model.mesh.getElementCount()
+
+                return {
+                    "success": True,
+                    "method": "advancing_front",
+                    "file_path": str(output_file),
+                    "node_count": node_count,
+                    "element_count": element_count,
+                }
+            finally:
+                gmsh.finalize()
+
+        except ImportError:
+            return {"success": False, "error": "gmsh not available for advancing front mesh generation"}
+        except Exception as e:
+            logger.error(f"Advancing front mesh generation failed: {e}")
+            return {"success": False, "error": f"Advancing front mesh generation failed: {e}"}
 
     async def _generate_paving_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate paving mesh."""
-        return {"success": False, "error": "Paving mesh generation not implemented"}
+        """Generate paving mesh — not supported (no paving library in locked dependencies)."""
+        return {
+            "success": False,
+            "error": "Paving mesh generation is not supported. "
+                     "Use Delaunay or advancing front methods instead.",
+        }
 
     async def _generate_tetgen_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate mesh using TetGen."""
-        return {"success": False, "error": "TetGen mesh generation not implemented"}
+        """Generate mesh using TetGen — not in locked dependencies."""
+        return {
+            "success": False,
+            "error": "TetGen mesh generation is not supported. "
+                     "TetGen is not in the locked dependency list. "
+                     "Use gmsh-based methods (Delaunay, Frontal-Delaunay) instead.",
+        }
 
     async def _generate_netgen_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate mesh using Netgen."""
-        return {"success": False, "error": "Netgen mesh generation not implemented"}
+        """Generate mesh using Netgen — not in locked dependencies."""
+        return {
+            "success": False,
+            "error": "Netgen mesh generation is not supported. "
+                     "Netgen is not in the locked dependency list. "
+                     "Use gmsh-based methods instead.",
+        }
 
     async def _generate_cgal_mesh(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generate mesh using CGAL."""
-        return {"success": False, "error": "CGAL mesh generation not implemented"}
+        """Generate mesh using CGAL — not in locked dependencies."""
+        return {
+            "success": False,
+            "error": "CGAL mesh generation is not supported. "
+                     "CGAL is not in the locked dependency list. "
+                     "Use gmsh-based methods instead.",
+        }
 
     async def _generate_gmsh_api_mesh(self, mesh: Mesh) -> Dict[str, Any]:
         """Generate mesh using Gmsh Python API."""
         try:
             import gmsh
+
+            params = mesh.mesh_parameters or {}
+            output_dir = Path(mesh.file_path).parent if mesh.file_path else Path(tempfile.mkdtemp())
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / f"{mesh.name}.msh"
+
             gmsh.initialize()
-            # Create geometry using Gmsh API
-            # This is a placeholder - actual implementation would use the API
-            gmsh.finalize()
-            return {"success": False, "error": "Gmsh API generation not implemented"}
+            try:
+                gmsh.model.add(mesh.name)
+
+                # Build geometry from mesh parameters
+                geom_type = params.get("geometry_type", "box")
+                if geom_type == "box":
+                    lx = float(params.get("length", 1.0))
+                    ly = float(params.get("width", 1.0))
+                    lz = float(params.get("height", 1.0))
+                    gmsh.model.occ.addBox(0, 0, 0, lx, ly, lz)
+                elif geom_type == "sphere":
+                    r = float(params.get("radius", 0.5))
+                    gmsh.model.occ.addBall(0, 0, 0, r)
+                elif geom_type == "cylinder":
+                    r = float(params.get("radius", 0.5))
+                    h = float(params.get("height", 1.0))
+                    gmsh.model.occ.addCylinder(0, 0, 0, 0, 0, h, r)
+                else:
+                    # Default: unit box
+                    gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
+
+                gmsh.model.occ.synchronize()
+
+                # Apply mesh size
+                mesh_size = float(params.get("mesh_size", 0.1))
+                gmsh.option.setNumber("Mesh.MeshSizeMin", mesh_size * 0.5)
+                gmsh.option.setNumber("Mesh.MeshSizeMax", mesh_size)
+                gmsh.option.setNumber("Mesh.Algorithm", int(params.get("algorithm", 6)))  # Frontal-Delaunay
+
+                # Set dimension
+                dim = int(params.get("dimension", 3))
+                gmsh.model.mesh.generate(dim)
+
+                # Save mesh
+                gmsh.write(str(output_file))
+
+                # Get mesh statistics
+                node_tags, _, _ = gmsh.model.mesh.getNodes()
+                element_types = gmsh.model.mesh.getElementTypes()
+                element_count = sum(
+                    len(gmsh.model.mesh.getElementsByType(et)[0]) for et in element_types
+                )
+
+                return {
+                    "success": True,
+                    "file_path": str(output_file),
+                    "node_count": len(node_tags),
+                    "element_count": element_count,
+                    "boundary_count": 0,
+                }
+            finally:
+                gmsh.finalize()
         except ImportError:
             return {"success": False, "error": "Gmsh Python API not available"}
         except Exception as e:
+            logger.warning(f"Gmsh API mesh generation failed: {e}")
             return {"success": False, "error": str(e)}
 
     async def compute_quality(self, mesh_id: UUID) -> Dict[str, Any]:
@@ -708,8 +1341,63 @@ Physical Surface("walls") = {1, 2, 3, 4, 5, 6};
         return quality
 
     async def _compute_gmsh_quality(self, file_path: Path) -> Dict[str, Any]:
-        """Compute quality for Gmsh mesh."""
-        return self._default_quality_result()
+        """Compute quality for Gmsh mesh using meshio."""
+        try:
+            import meshio
+            import numpy as np
+
+            m = meshio.read(str(file_path))
+            element_count = sum(len(cells.data) for cells in m.cells)
+            node_count = len(m.points)
+
+            aspect_ratios = []
+            for cell_block in m.cells:
+                if cell_block.type in ("tetra", "triangle"):
+                    for cell in cell_block.data:
+                        pts = m.points[cell]
+                        edges = [np.linalg.norm(pts[i] - pts[j]) for i in range(len(pts)) for j in range(i + 1, len(pts))]
+                        longest = max(edges)
+                        shortest = min(edges)
+                        if shortest > 0:
+                            aspect_ratios.append(longest / shortest)
+
+            if aspect_ratios:
+                arr = np.array(aspect_ratios)
+                return {
+                    "element_count": element_count,
+                    "node_count": node_count,
+                    "boundary_count": 0,
+                    "min_quality": float(1.0 / arr.max()),
+                    "avg_quality": float(1.0 / arr.mean()),
+                    "max_aspect_ratio": float(arr.max()),
+                    "max_skewness": 0.0,
+                    "distribution": {
+                        "aspect_ratio_min": float(arr.min()),
+                        "aspect_ratio_max": float(arr.max()),
+                        "aspect_ratio_mean": float(arr.mean()),
+                    },
+                    "failed_elements": int((arr > 10.0).sum()),
+                    "warnings": [] if arr.max() <= 10.0 else [f"{int((arr > 10.0).sum())} elements with high aspect ratio"],
+                    "report_path": None,
+                }
+            return {
+                "element_count": element_count,
+                "node_count": node_count,
+                "boundary_count": 0,
+                "min_quality": 1.0,
+                "avg_quality": 1.0,
+                "max_aspect_ratio": 1.0,
+                "max_skewness": 0.0,
+                "distribution": {},
+                "failed_elements": 0,
+                "warnings": [],
+                "report_path": None,
+            }
+        except ImportError:
+            return self._default_quality_result()
+        except Exception as e:
+            logger.warning(f"Gmsh quality computation failed: {e}")
+            return self._default_quality_result()
 
     async def _compute_vtk_quality(self, file_path: Path) -> Dict[str, Any]:
         """Compute quality for VTK mesh."""
@@ -752,8 +1440,78 @@ Physical Surface("walls") = {1, 2, 3, 4, 5, 6};
         return self._default_quality_result()
 
     async def _compute_generic_quality(self, mesh: Mesh) -> Dict[str, Any]:
-        """Generic quality computation fallback."""
-        return self._default_quality_result()
+        """Generic quality computation using meshio/pyvista."""
+        try:
+            import meshio
+
+            file_path = Path(mesh.file_path)
+            if not file_path or not file_path.exists():
+                return self._default_quality_result()
+
+            m = meshio.read(str(file_path))
+            import numpy as np
+
+            element_count = sum(len(cells.data) for cells in m.cells)
+            node_count = len(m.points)
+
+            # Compute aspect ratios for tetrahedral cells
+            aspect_ratios = []
+            for cell_block in m.cells:
+                if cell_block.type == "tetra":
+                    for tet in cell_block.data:
+                        p = m.points[tet]
+                        edges = [
+                            np.linalg.norm(p[0] - p[1]),
+                            np.linalg.norm(p[0] - p[2]),
+                            np.linalg.norm(p[0] - p[3]),
+                            np.linalg.norm(p[1] - p[2]),
+                            np.linalg.norm(p[1] - p[3]),
+                            np.linalg.norm(p[2] - p[3]),
+                        ]
+                        longest = max(edges)
+                        shortest = min(edges)
+                        if shortest > 0:
+                            aspect_ratios.append(longest / shortest)
+
+            if aspect_ratios:
+                arr = np.array(aspect_ratios)
+                return {
+                    "element_count": element_count,
+                    "node_count": node_count,
+                    "boundary_count": 0,
+                    "min_quality": float(1.0 / arr.max()),
+                    "avg_quality": float(1.0 / arr.mean()),
+                    "max_aspect_ratio": float(arr.max()),
+                    "max_skewness": 0.0,
+                    "distribution": {
+                        "aspect_ratio_min": float(arr.min()),
+                        "aspect_ratio_max": float(arr.max()),
+                        "aspect_ratio_mean": float(arr.mean()),
+                        "aspect_ratio_std": float(arr.std()),
+                    },
+                    "failed_elements": int((arr > 10.0).sum()),
+                    "warnings": [] if arr.max() <= 10.0 else [f"{int((arr > 10.0).sum())} elements with aspect ratio > 10"],
+                    "report_path": None,
+                }
+            else:
+                return {
+                    "element_count": element_count,
+                    "node_count": node_count,
+                    "boundary_count": 0,
+                    "min_quality": 1.0,
+                    "avg_quality": 1.0,
+                    "max_aspect_ratio": 1.0,
+                    "max_skewness": 0.0,
+                    "distribution": {},
+                    "failed_elements": 0,
+                    "warnings": ["No tetrahedral cells found for quality computation"],
+                    "report_path": None,
+                }
+        except ImportError:
+            return self._default_quality_result()
+        except Exception as e:
+            logger.warning(f"Generic quality computation failed: {e}")
+            return self._default_quality_result()
 
     def _default_quality_result(self) -> Dict[str, Any]:
         """Default quality result when computation is not available."""
@@ -767,7 +1525,7 @@ Physical Surface("walls") = {1, 2, 3, 4, 5, 6};
             "max_skewness": 0.0,
             "distribution": {},
             "failed_elements": 0,
-            "warnings": ["Quality computation not available for this mesh format"],
+            "warnings": ["Quality computation not available — meshio or required library not installed for this mesh format"],
             "report_path": None,
         }
 

@@ -157,6 +157,46 @@ pub fn stop_backend(state: State<AppState>) -> Result<(), String> {
     manager.stop().map_err(|e| e.to_string())
 }
 
+/// Get the canonical local capability state for all fourteen engineering engines.
+#[tauri::command]
+pub fn get_engine_inventory(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    let inventory = manager.engine_inventory(&config).map_err(|e| e.to_string())?;
+    inventory
+        .get("engines")
+        .cloned()
+        .ok_or_else(|| "Local backend engine contract returned no engine inventory.".to_string())
+}
+
+/// Read a project's durable workflow state through the local desktop bridge.
+#[tauri::command]
+pub fn get_workflow_snapshot(
+    state: State<AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .workflow_snapshot(&config, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Persist a semantic workflow recipe without allowing the webview to reach a port directly.
+#[tauri::command]
+pub fn configure_workflow_stage(
+    state: State<AppState>,
+    project_id: String,
+    stage_id: String,
+    configuration: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .configure_workflow_stage(&config, &project_id, &stage_id, &configuration)
+        .map_err(|e| e.to_string())
+}
+
 // ============================================================================
 // Window Commands
 // ============================================================================

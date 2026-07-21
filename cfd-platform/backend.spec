@@ -4,12 +4,12 @@ import sys
 import os
 from pathlib import Path
 
-# Add the backend source to the path
-backend_src = Path(__file__).parent.parent.parent.parent / "backend"
+# The backend source is part of this repository.  Keep this relative to the
+# spec file so Cargo, PyInstaller, and a developer invocation resolve the same
+# local toolchain.
+backend_dir = Path(SPECPATH) / "backend"
+backend_src = backend_dir / "src"
 sys.path.insert(0, str(backend_src))
-
-# Get the backend source directory
-backend_dir = Path(__file__).parent.parent.parent.parent / "backend"
 
 block_cipher = None
 
@@ -420,16 +420,6 @@ excluded_modules = [
     'tkinter.tix',
     'tkinter.simpledialog',
     'tkinter.commondialog',
-    'matplotlib',
-    'matplotlib.pyplot',
-    'matplotlib.backends',
-    'matplotlib.backends.backend_tkagg',
-    'matplotlib.backends.backend_agg',
-    'matplotlib.backends.backend_cairo',
-    'matplotlib.backends.backend_pdf',
-    'matplotlib.backends.backend_svg',
-    'matplotlib.backends.backend_ps',
-    'matplotlib.backends.backend_pgf',
     'IPython',
     'IPython.core',
     'IPython.terminal',
@@ -477,9 +467,34 @@ excluded_modules = [
     'pdm',
 ]
 
+# The previous broad list included development and cloud-only packages. Keep
+# the frozen local runtime focused on modules imported dynamically by CFD
+# workers; normal imports are resolved automatically by PyInstaller.
+hidden_imports = [
+    "uvicorn.logging",
+    "uvicorn.loops.auto",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets.auto",
+    "gmsh",
+    "meshio",
+    "nevergrad",
+    "pyvista",
+    "vtk",
+    "vtk.util.numpy_support",
+    # Local PDF evidence reports use the non-interactive Agg/PDF renderers.
+    # They must remain in the frozen backend; reports never depend on a GUI
+    # display server or a browser renderer.
+    "matplotlib",
+    "matplotlib.figure",
+    "matplotlib.image",
+    "matplotlib.backends",
+    "matplotlib.backends.backend_agg",
+    "matplotlib.backends.backend_pdf",
+]
+
 a = Analysis(
-    [str(backend_dir / "main.py")],
-    pathex=[str(backend_dir)],
+    [str(backend_src / "cfd_backend" / "main.py")],
+    pathex=[str(backend_src)],
     binaries=[],
     datas=backend_files,
     hiddenimports=hidden_imports,
@@ -495,7 +510,7 @@ a = Analysis(
 
 # Filter out unnecessary binaries
 a.binaries = [b for b in a.binaries if not any(excl in b[0] for excl in [
-    'tkinter', 'matplotlib', 'IPython', 'jupyter', 'notebook', 'nbformat',
+    'tkinter', 'IPython', 'jupyter', 'notebook', 'nbformat',
     'nbconvert', 'ipykernel', 'ipython_genutils', 'traitlets', 'decorator',
     'backcall', 'prompt_toolkit', 'pygments', 'sphinx', 'docutils',
     'pytest', 'faker', 'hypothesis', 'coverage', 'tox', 'setuptools',

@@ -1,0 +1,144 @@
+/* HX CFD Global Styles */
+/* Based on HX-CFD-Master-Prompt-v2.md */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Layer 1 — Structural */
+  --color-structural-black: #000000;
+  --color-structural-titanium-900: #1C1D1E;
+  --color-structural-titanium-700: #2C2D2F;
+  --color-structural-titanium-500: #3E3F42;
+  --color-structural-titanium-300: #6E6F72;
+  --color-structural-white: #F5F5F6;
+
+  /* Layer 2 — Functional */
+  --color-status-success: #4CAF50;
+  --color-status-warning: #FF9800;
+  --color-status-error: #F44336;
+  --color-status-active: #4CAF50;
+  --color-status-selection: #F5F5F6;
+
+  /* Typography */
+  --font-family-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-data: 'JetBrains Mono', 'IBM Plex Mono', 'Fira Code', monospace;
+
+  /* Spacing */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 16px;
+  --spacing-4: 24px;
+  --spacing-5: 32px;
+  --spacing-6: 40px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-none: 0px;
+
+  /* Motion */
+  --motion-duration-instant: 80ms;
+  --motion-duration-fast: 200ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Elevation */
+  --elevation-0: none;
+  --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family-ui);
+  background-color: var(--color-structural-black);
+  color: var(--color-structural-white);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Scale */
+.type-display {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.type-heading {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-structural-titanium-300);
+}
+
+.type-body {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.type-caption {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-structural-titanium-300);
+}
+
+.type-data-lg {
+  font-family: var(--font-family-data);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.type-data-sm {
+  font-family: var(--font-family-data);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-structural-titanium-500);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-structural-titanium-700);
+}
+
+/* Utility Classes */
+.glow {
+  box-shadow: 0 0 8px 2px rgba(76, 175, 80, 0.5);
+}
+
+.glow-error {
+  box-shadow: 0 0 8px 2px rgba(244, 67, 54, 0.5);
+}
+
+.glow-selection {
+  box-shadow: 0 0 8px 2px rgba(245, 245, 246, 0.3);
+}
+
+/* Transitions */
+.transition-instant {
+  transition: all var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.transition-fast {
+  transition: all var(--motion-duration-fast) var(--motion-easing-standard);
+}
